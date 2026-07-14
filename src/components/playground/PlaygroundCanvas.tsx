@@ -58,10 +58,15 @@ export default function PlaygroundCanvas() {
           shadows
           camera={{ position: [8, 6, 8], fov: 50, near: 0.1, far: 200 }}
           gl={{ antialias: true, alpha: false }}
-          dpr={1}
+          dpr={1.2}
           style={{ background: "#011851" }}
         >
-          <SceneContent showGrid={showGrid} mode={mode} glbUrl={glbUrl} onModelLoaded={handleModelLoaded} />
+          <SceneContent
+            showGrid={showGrid}
+            mode={mode}
+            glbUrl={glbUrl}
+            onModelLoaded={handleModelLoaded}
+          />
         </Canvas>
       </div>
       <UIOverlay mode={mode} />

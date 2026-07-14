@@ -3,7 +3,13 @@
 import type { SceneMode } from "@/components/playground/SceneContent";
 import OverlayHeader from "./OverlayHeader";
 
-export default function UIOverlay({ mode }: { mode: SceneMode }) {
+interface UIOverlayProps {
+  mode: SceneMode;
+  title?: string;
+  subtitle?: string;
+}
+
+export default function UIOverlay({ mode, title, subtitle }: UIOverlayProps) {
   return (
     <div
       style={{
@@ -13,7 +19,7 @@ export default function UIOverlay({ mode }: { mode: SceneMode }) {
         pointerEvents: "none",
       }}
     >
-      <OverlayHeader mode={mode} />
+      <OverlayHeader mode={mode} title={title} subtitle={subtitle} />
     </div>
   );
 }

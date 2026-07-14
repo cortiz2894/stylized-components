@@ -1,0 +1,54 @@
+.container {
+  position: fixed;
+  bottom: 74px;
+  left: 24px;
+  z-index: 55;
+  display: flex;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.label {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding-right: 4px;
+  font-family: var(--font-ibm-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--overlay-accent);
+  opacity: 0.7;
+}
+
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--overlay-border);
+  border-radius: 4px;
+  background: var(--overlay-bg);
+  color: var(--overlay-text);
+  cursor: pointer;
+  font-family: var(--font-ibm-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: 0.6;
+  transition: border-color 0.2s, background 0.2s, opacity 0.2s;
+  pointer-events: auto;
+}
+
+.btn:hover {
+  border-color: var(--overlay-accent);
+  opacity: 1;
+}
+
+.active {
+  border-color: var(--overlay-accent);
+  background: var(--overlay-surface);
+  opacity: 1;
+}

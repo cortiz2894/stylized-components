@@ -5,13 +5,15 @@ import { COLORS } from "@/components/shared/theme";
 import styles from "./OverlayButtons.module.css";
 
 interface OverlayButtonsProps {
-  showGrid: boolean;
-  onToggleGrid: () => void;
   hideLeva: boolean;
   onToggleLeva: () => void;
-  hasGlb: boolean;
-  onLoadGlb: (file: File) => void;
-  onClearGlb: () => void;
+  /** Grid toggle is rendered only when a handler is provided. */
+  showGrid?: boolean;
+  onToggleGrid?: () => void;
+  /** GLB import controls are rendered only when a handler is provided. */
+  hasGlb?: boolean;
+  onLoadGlb?: (file: File) => void;
+  onClearGlb?: () => void;
 }
 
 export default function OverlayButtons({
@@ -27,7 +29,7 @@ export default function OverlayButtons({
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) onLoadGlb(file);
+    if (file) onLoadGlb?.(file);
     e.target.value = "";
   };
 
@@ -45,27 +47,31 @@ export default function OverlayButtons({
       }
     >
       {/* Load GLB */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".glb,.gltf"
-        className={styles.fileInput}
-        onChange={handleFileChange}
-      />
-      <button
-        onClick={() => fileInputRef.current?.click()}
-        className={`${styles.importBtn} ${hasGlb ? styles.active : ""}`}
-        title="Load GLB model"
-      >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2">
-          <path d="M8 2v8M5 7l3 3 3-3" />
-          <path d="M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2" />
-        </svg>
-        <span className={styles.importLabel}>Import GLB</span>
-      </button>
+      {onLoadGlb && (
+        <>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".glb,.gltf"
+            className={styles.fileInput}
+            onChange={handleFileChange}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className={`${styles.importBtn} ${hasGlb ? styles.active : ""}`}
+            title="Load GLB model"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2">
+              <path d="M8 2v8M5 7l3 3 3-3" />
+              <path d="M2 11v2a1 1 0 001 1h10a1 1 0 001-1v-2" />
+            </svg>
+            <span className={styles.importLabel}>Import GLB</span>
+          </button>
+        </>
+      )}
 
       {/* Clear GLB */}
-      {hasGlb && (
+      {hasGlb && onClearGlb && (
         <button
           onClick={onClearGlb}
           className={styles.btn}
@@ -79,18 +85,20 @@ export default function OverlayButtons({
       )}
 
       {/* Toggle Grid */}
-      <button
-        onClick={onToggleGrid}
-        className={`${styles.btn} ${showGrid ? styles.active : styles.inactive}`}
-        title={showGrid ? "Hide Grid" : "Show Grid"}
-      >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2">
-          <rect x="1" y="1" width="6" height="6" />
-          <rect x="9" y="1" width="6" height="6" />
-          <rect x="1" y="9" width="6" height="6" />
-          <rect x="9" y="9" width="6" height="6" />
-        </svg>
-      </button>
+      {onToggleGrid && (
+        <button
+          onClick={onToggleGrid}
+          className={`${styles.btn} ${showGrid ? styles.active : styles.inactive}`}
+          title={showGrid ? "Hide Grid" : "Show Grid"}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2">
+            <rect x="1" y="1" width="6" height="6" />
+            <rect x="9" y="1" width="6" height="6" />
+            <rect x="1" y="9" width="6" height="6" />
+            <rect x="9" y="9" width="6" height="6" />
+          </svg>
+        </button>
+      )}
 
       {/* Toggle Leva Controls */}
       <button

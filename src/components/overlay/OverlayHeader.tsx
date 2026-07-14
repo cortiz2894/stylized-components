@@ -2,7 +2,17 @@
 
 import type { SceneMode } from "@/components/playground/SceneContent";
 
-export default function OverlayHeader({ mode }: { mode: SceneMode }) {
+interface OverlayHeaderProps {
+  mode: SceneMode;
+  title?: string;
+  subtitle?: string;
+}
+
+export default function OverlayHeader({
+  mode,
+  title = "WATER ANIME STYLE",
+  subtitle = "Water caustics with object intersaction",
+}: OverlayHeaderProps) {
   const now = new Date();
   const dateStr = now.toLocaleDateString("en-US", {
     year: "numeric",
@@ -49,7 +59,7 @@ export default function OverlayHeader({ mode }: { mode: SceneMode }) {
           margin: 0,
         }}
       >
-        WATER ANIME STYLE
+        {title}
       </h1>
 
       {/* Designation subtitle */}
@@ -64,7 +74,7 @@ export default function OverlayHeader({ mode }: { mode: SceneMode }) {
           marginTop: 4,
         }}
       >
-         Water caustics with object intersaction
+        {subtitle}
       </div>
 
       {/* Rev / Date metadata */}
