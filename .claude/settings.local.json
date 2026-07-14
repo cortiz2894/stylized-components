@@ -9,7 +9,12 @@
       "Bash(curl:*)",
       "Bash(pnpm list:*)",
       "Bash(npx next build:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(lsof -iTCP -sTCP:LISTEN -P)",
+      "Bash(npx eslint *)",
+      "Bash(git rm *)",
+      "Bash(gh auth *)",
+      "Bash(gh repo *)"
     ]
   }
 }

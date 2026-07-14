@@ -9,10 +9,12 @@ import type { SceneMode } from "./SceneContent";
 import UIOverlay from "@/components/overlay/UIOverlay";
 import OverlayButtons from "@/components/overlay/OverlayButtons";
 import LoadingOverlay from "@/components/overlay/LoadingOverlay";
+import { useImmersive } from "@/components/overlay/useImmersive";
 
 export default function PlaygroundCanvas() {
   const [showGrid, setShowGrid] = useState(true);
   const [hideLeva, setHideLeva] = useState(true);
+  const { immersive, toggle: toggleImmersive } = useImmersive();
   const [glbUrl, setGlbUrl] = useState<string | null>(null);
   const [isLoadingModel, setIsLoadingModel] = useState(false);
   const glbUrlRef = useRef<string | null>(null);
@@ -51,20 +53,25 @@ export default function PlaygroundCanvas() {
         collapsed={false}
         flat={false}
         oneLineLabels={false}
-        hidden={hideLeva}
+        hidden={hideLeva || immersive}
       />
       <div style={{ position: "fixed", inset: 0 }}>
         <Canvas
           shadows
           camera={{ position: [8, 6, 8], fov: 50, near: 0.1, far: 200 }}
           gl={{ antialias: true, alpha: false }}
-          dpr={1}
+          dpr={1.2}
           style={{ background: "#011851" }}
         >
-          <SceneContent showGrid={showGrid} mode={mode} glbUrl={glbUrl} onModelLoaded={handleModelLoaded} />
+          <SceneContent
+            showGrid={showGrid}
+            mode={mode}
+            glbUrl={glbUrl}
+            onModelLoaded={handleModelLoaded}
+          />
         </Canvas>
       </div>
-      <UIOverlay mode={mode} />
+      {!immersive && <UIOverlay mode={mode} />}
       <OverlayButtons
         showGrid={showGrid}
         onToggleGrid={() => setShowGrid((v) => !v)}
@@ -73,6 +80,8 @@ export default function PlaygroundCanvas() {
         hasGlb={glbUrl !== null}
         onLoadGlb={handleLoadGlb}
         onClearGlb={handleClearGlb}
+        immersive={immersive}
+        onToggleImmersive={toggleImmersive}
       />
       <LoadingOverlay visible={isLoadingModel} />
     </>

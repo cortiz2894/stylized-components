@@ -5,8 +5,9 @@ import Footer from "@/components/overlay/Footer";
 
 
 export const metadata: Metadata = {
-  title: "Anime Water Shader",
-  description: "Anime style water in R3F",
+  title: "Stylized Components — by Cortiz",
+  description:
+    "A collection of real-time, anime-inspired rendering systems for the web, built with React Three Fiber and custom GLSL.",
 };
 
 export default function RootLayout({
