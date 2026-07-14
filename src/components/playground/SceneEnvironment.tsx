@@ -29,15 +29,19 @@ interface SceneEnvironmentProps {
     bgIntensity?: number;
     envIntensity?: number;
   };
+  /** Leva folder — kept per scene so two demos don't share stored values through
+   *  Leva's global store. */
+  folder?: string;
 }
 
 export default function SceneEnvironment({
   mode,
   background,
   defaults,
+  folder: folderName = "Environment",
 }: SceneEnvironmentProps) {
   const { preset, bgBlurriness, bgIntensity, envIntensity } = useControls(
-    "Environment",
+    folderName,
     {
       preset: {
         value: (defaults?.preset ?? "park") as EnvPreset,

@@ -14,6 +14,11 @@ interface OverlayButtonsProps {
   hasGlb?: boolean;
   onLoadGlb?: (file: File) => void;
   onClearGlb?: () => void;
+  /** Immersive toggle is rendered only when a handler is provided. While
+   *  immersive, this is the ONLY button left — it has to be, or there'd be no way
+   *  back out other than the Escape key. */
+  immersive?: boolean;
+  onToggleImmersive?: () => void;
 }
 
 export default function OverlayButtons({
@@ -24,6 +29,8 @@ export default function OverlayButtons({
   hasGlb,
   onLoadGlb,
   onClearGlb,
+  immersive,
+  onToggleImmersive,
 }: OverlayButtonsProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -32,6 +39,43 @@ export default function OverlayButtons({
     if (file) onLoadGlb?.(file);
     e.target.value = "";
   };
+
+  const immersiveBtn = onToggleImmersive && (
+    <button
+      onClick={onToggleImmersive}
+      className={`${styles.btn} ${immersive ? styles.active : ""}`}
+      title={immersive ? "Exit immersive view (Esc)" : "Immersive view — hide all UI"}
+    >
+      {immersive ? (
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2">
+          <path d="M6 1v5H1M10 1v5h5M6 15v-5H1M10 15v-5h5" />
+        </svg>
+      ) : (
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2">
+          <path d="M1 6V1h5M15 6V1h-5M1 10v5h5M15 10v5h-5" />
+        </svg>
+      )}
+    </button>
+  );
+
+  if (immersive) {
+    return (
+      <div
+        className={styles.container}
+        style={
+          {
+            "--overlay-bg": COLORS.bg,
+            "--overlay-surface": COLORS.surface,
+            "--overlay-border": COLORS.border,
+            "--overlay-text": COLORS.text,
+            "--overlay-accent": COLORS.accent,
+          } as React.CSSProperties
+        }
+      >
+        {immersiveBtn}
+      </div>
+    );
+  }
 
   return (
     <div
@@ -115,6 +159,9 @@ export default function OverlayButtons({
           <circle cx="9" cy="12" r="1.5" fill="currentColor" />
         </svg>
       </button>
+
+      {/* Immersive view */}
+      {immersiveBtn}
     </div>
   );
 }

@@ -12,7 +12,9 @@
       "Bash(npm run build:*)",
       "Bash(lsof -iTCP -sTCP:LISTEN -P)",
       "Bash(npx eslint *)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(gh auth *)",
+      "Bash(gh repo *)"
     ]
   }
 }

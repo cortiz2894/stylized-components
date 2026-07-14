@@ -31,6 +31,12 @@ body {
   font-family: var(--font-barlow), sans-serif;
 }
 
+/* Immersive mode (see useImmersive): the footer is rendered by the root layout,
+   so a demo page can't unmount it — it gets hidden from here instead. */
+body.immersive footer {
+  display: none;
+}
+
 @keyframes grain {
   0%,
   100% {

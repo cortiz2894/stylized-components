@@ -9,6 +9,7 @@ import type { SceneMode } from "@/components/playground/SceneContent";
 import UIOverlay from "@/components/overlay/UIOverlay";
 import OverlayButtons from "@/components/overlay/OverlayButtons";
 import LoadingOverlay from "@/components/overlay/LoadingOverlay";
+import { useImmersive } from "@/components/overlay/useImmersive";
 import {
   SKY_PRESETS,
   type SkyPreset,
@@ -29,6 +30,7 @@ const CAMERA_FAR = 3000;
 export default function GrassCanvas() {
   const [hideLeva, setHideLeva] = useState(true);
   const [isLoadingModel, setIsLoadingModel] = useState(true);
+  const { immersive, toggle: toggleImmersive } = useImmersive();
 
   // Active sky preset — SkyDome reports it on mount and on every Sky Mode
   // change. It drives the lighting rig and the full-screen color filter, so the
@@ -52,7 +54,9 @@ export default function GrassCanvas() {
     setActivePreset(preset);
   }, []);
 
-  const { mode } = useControls("Scene", {
+  // "Grass Scene", not "Scene": the water demo owns "Scene" in Leva's global
+  // store, and sharing the folder would share the value across a navigation.
+  const { mode } = useControls("Grass Scene", {
     mode: {
       value: "Background" as SceneMode,
       options: ["Background", "Frame"] as SceneMode[],
@@ -68,7 +72,7 @@ export default function GrassCanvas() {
         collapsed={false}
         flat={false}
         oneLineLabels={false}
-        hidden={hideLeva}
+        hidden={hideLeva || immersive}
       />
       <div style={{ position: "fixed", inset: 0 }}>
         <Canvas
@@ -91,9 +95,6 @@ export default function GrassCanvas() {
             onModelLoaded={handleModelLoaded}
           />
         </Canvas>
-
-        {/* Sky preset color filter — tints the whole frame toward the preset's
-            mood without touching any material. */}
         <div
           style={{
             position: "absolute",
@@ -105,11 +106,14 @@ export default function GrassCanvas() {
           }}
         />
       </div>
-      <UIOverlay
-        mode={mode}
-        title="STYLIZED GRASS"
-        subtitle="Wind-animated stylized grass field"
-      />
+      {!immersive && (
+        <UIOverlay
+          mode={mode}
+          title="STYLIZED GRASS"
+          subtitle="Wind-animated stylized grass field"
+        />
+      )}
+      {!immersive && (
       <OverlaySwitcher
         rows={[
           {
@@ -132,9 +136,12 @@ export default function GrassCanvas() {
           },
         ]}
       />
+      )}
       <OverlayButtons
         hideLeva={hideLeva}
         onToggleLeva={() => setHideLeva((v) => !v)}
+        immersive={immersive}
+        onToggleImmersive={toggleImmersive}
       />
       <LoadingOverlay visible={isLoadingModel} />
     </>

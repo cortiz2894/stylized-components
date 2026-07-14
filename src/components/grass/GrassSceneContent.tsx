@@ -31,17 +31,17 @@ export default function GrassSceneContent({
 }: GrassSceneContentProps) {
   return (
     <>
-      <SceneCamera azimuth={41} polar={73} radius={6.5} />
+      {/* The "Grass ..." folder names aren't cosmetic: Leva's store is global and
+          keyed by folder + control name, so sharing a folder with the water demo
+          would mean sharing its values across a navigation. */}
+      <SceneCamera folder="Grass Camera" azimuth={41} polar={73} radius={6.5} />
       <GrassLighting preset={activePreset} />
-      {/* SkyDome owns the backdrop. The HDRI is mounted but its contribution is
-          off by default (envIntensity 0) — GrassLighting drives this scene. */}
       <SceneEnvironment
+        folder="Grass Environment"
         mode={mode}
         background={false}
         defaults={{ preset: "night", envIntensity: 0 }}
       />
-      {/* targetMode pushes the overlay's pick into SkyDome's own Leva dropdown,
-          which then applies the preset — one code path for both entry points. */}
       <SkyDome
         defaultMode="day"
         targetMode={skyMode}
@@ -54,9 +54,10 @@ export default function GrassSceneContent({
           onLoaded={onModelLoaded}
         />
       </Suspense>
-      {/* Softer, tighter bloom than the water scene — the grass reads better
-          with just a light glow on the brightest blades. */}
-      <PostProcessing defaults={{ intensity: 0.3, radius: 0.15, threshold: 0.06 }} />
+      <PostProcessing
+        folder="Grass Postprocessing"
+        defaults={{ intensity: 0.3, radius: 0.15, threshold: 0.06 }}
+      />
     </>
   );
 }

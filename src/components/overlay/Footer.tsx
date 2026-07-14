@@ -21,7 +21,7 @@ const Footer =() => (
     />
 
 </div>
-  <span className="hidden sm:inline">Creative Boilerplate — v0.1.6</span>
+  <span className="hidden sm:inline">Stylized Components — v0.2.0</span>
   <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
     {socialLinks.map(({ icon: Icon, href, label }) => (
       <Link

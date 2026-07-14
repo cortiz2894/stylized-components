@@ -17,12 +17,18 @@ interface SceneCameraProps {
   azimuth?: number;
   polar?: number;
   radius?: number;
+  /** Leva folder. Leva's store is global and keyed by folder + control name, so
+   *  two scenes sharing this component under the same folder would also share
+   *  its VALUES: whatever you dragged in one demo would carry into the next.
+   *  Each scene passes its own folder to stay isolated. */
+  folder?: string;
 }
 
 export default function SceneCamera({
   azimuth: initialAzimuth = DEFAULT_AZIMUTH,
   polar: initialPolar = DEFAULT_POLAR,
   radius: initialRadius = DEFAULT_RADIUS,
+  folder: folderName = "Camera",
 }: SceneCameraProps = {}) {
   const controlsRef = useRef<OrbitControlsImpl>(null);
   const camera = useThree((s) => s.camera);
@@ -39,7 +45,7 @@ export default function SceneCamera({
     azimuth,
     polar,
     radius,
-  } = useControls("Camera", {
+  } = useControls(folderName, {
     autoRotate: { value: false, label: "Auto Rotate" },
     autoRotateSpeed: {
       value: 0.05,

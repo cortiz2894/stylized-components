@@ -11,11 +11,19 @@ interface PostProcessingProps {
     radius?: number;
     threshold?: number;
   };
+  /** Leva folder. Leva's store is global and keyed by folder + control name, so
+   *  scenes sharing this component under one folder would share its VALUES too —
+   *  the bloom you dialled in on one demo would follow you to the next. Each
+   *  scene passes its own folder to stay isolated. */
+  folder?: string;
 }
 
-export default function PostProcessing({ defaults }: PostProcessingProps = {}) {
+export default function PostProcessing({
+  defaults,
+  folder: folderName = "Postprocessing",
+}: PostProcessingProps = {}) {
   const { mipmapBlur, intensity, radius, threshold } = useControls(
-    "Postprocessing",
+    folderName,
     {
       mipmapBlur: { value: defaults?.mipmapBlur ?? true,  label: "Mipmap Blur" },
       intensity:  { value: defaults?.intensity ?? 1.1,  min: 0, max: 10, step: 0.05, label: "Intensity" },

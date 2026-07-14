@@ -1,16 +1,18 @@
-# Stylized Scenes — Creative Boilerplate
+# Stylized Components
 
-Real-time anime/cel-shaded scenes built with Next.js, Three.js, and React Three Fiber.
-Each one is a self-contained, reusable system written in custom GLSL — drop it into your own project and drive it from Leva.
+A growing collection of real-time, anime-inspired rendering systems for the web, built with Next.js, Three.js and React Three Fiber.
+Each one is a **self-contained, reusable component** written in custom GLSL — drop it into your own scene and drive it from Leva. No baked textures, no black boxes.
 
 ![Next.js](https://img.shields.io/badge/Next.js-15-black?style=flat-square&logo=next.js)
 ![Three.js](https://img.shields.io/badge/Three.js-0.182-black?style=flat-square&logo=three.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?style=flat-square&logo=typescript)
 
-| Scene | Route | System |
+| Demo | Route | Component |
 |---|---|---|
-| 🌊 **Water — Anime Style** | `/` | [`WaterFloor`](src/components/WaterFloor) — cel-shaded water, ripples, GPU wave simulation |
+| 🌊 **Water — Anime Style** | `/water` | [`WaterFloor`](src/components/WaterFloor) — cel-shaded water, ripples, GPU wave simulation |
 | 🌿 **Stylized Grass** | `/grass` | [`GrassField`](src/components/GrassField) — instanced grass + flowers, dirt blending, trampling |
+
+The index page (`/`) lists the demos.
 
 ---
 
@@ -167,16 +169,17 @@ The scene ships with a `SkyDome` (procedural gradient, sun/moon, FBM clouds, sta
 
 ```bash
 # Clone the repository
-git clone https://github.com/cortiz2894/creative-boilerplate.git
+git clone https://github.com/cortiz2894/stylized-components.git
 
-cd creative-boilerplate
+cd stylized-components
 
 pnpm install
 
 pnpm dev
 ```
 
-- [http://localhost:3000](http://localhost:3000) — the **water** scene
+- [http://localhost:3000](http://localhost:3000) — the demo index
+- [http://localhost:3000/water](http://localhost:3000/water) — the **water** scene
 - [http://localhost:3000/grass](http://localhost:3000/grass) — the **grass** scene
 
 Each scene exposes its full parameter set through Leva (toggle the panel with the sliders button, bottom right).
