@@ -7,16 +7,32 @@ Each one is a **self-contained, reusable component** written in custom GLSL — 
 ![Three.js](https://img.shields.io/badge/Three.js-0.182-black?style=flat-square&logo=three.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?style=flat-square&logo=typescript)
 
-| Demo | Route | Component |
-|---|---|---|
-| 🌊 **Water — Anime Style** | `/water` | [`WaterFloor`](src/components/WaterFloor) — cel-shaded water, ripples, GPU wave simulation |
-| 🌿 **Stylized Grass** | `/grass` | [`GrassField`](src/components/GrassField) — instanced grass + flowers, dirt blending, trampling |
+| Demo | Route | Component | Breakdown |
+|---|---|---|---|
+| 🌊 **Water — Anime Style** | `/water` | [`WaterFloor`](src/components/WaterFloor) — cel-shaded water, ripples, GPU wave simulation | [▶ YouTube](https://youtu.be/v5YoO8gPYPQ) |
+| 🌿 **Stylized Grass** | `/grass` | [`GrassField`](src/components/GrassField) — instanced grass + flowers, dirt blending, trampling | [▶ YouTube](https://youtu.be/v5YoO8gPYPQ) |
 
 The index page (`/`) lists the demos.
 
 ---
 
+## 📽 Demos
+
+### 🌊 Water — Anime Style
+
 https://github.com/user-attachments/assets/ed8cb44d-d290-493c-b0d2-8f48d6580571
+
+### 🌿 Stylized Grass
+
+<!-- To make this play inline on GitHub, drag public/assets/demos/demo-grass.mp4
+     into any issue/PR comment box, copy the https://github.com/user-attachments/…
+     URL it generates, and paste it here on its own line (like the water clip
+     above). A raw.githubusercontent link will NOT play — GitHub serves .mp4 from
+     raw as a download, not as video. -->
+
+[▶ demo-grass.mp4](public/assets/demos/demo-grass.mp4)
+
+Both clips live in the repo under [`public/assets/demos`](public/assets/demos) — the same footage the landing page plays behind its cards.
 
 ---
 

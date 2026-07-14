@@ -112,7 +112,10 @@
   text-transform: uppercase;
   text-decoration: none;
   cursor: pointer;
-  transition: border-color 0.2s, background 0.2s, color 0.2s;
+  transition:
+    border-color 0.2s,
+    background 0.2s,
+    color 0.2s;
 }
 
 .btnPrimary {

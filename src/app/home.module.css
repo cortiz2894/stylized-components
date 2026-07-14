@@ -61,13 +61,36 @@
 }
 
 .lead {
+  color: silver;
   max-width: 560px;
   margin: 16px 0 0;
-  font-family: var(--font-barlow), sans-serif;
   font-size: 16px;
   font-weight: 300;
+  font-family: system-ui;
+}
+
+.leadMuted {
+  max-width: 560px;
+  margin: 14px 0 0;
+  font-family: var(--font-barlow), sans-serif;
+  font-size: 14px;
+  font-weight: 300;
   line-height: 1.65;
+  color: var(--ink-faint);
+}
+
+.inlineLink {
   color: var(--ink-dim);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line-hover);
+  transition:
+    color 0.25s ease,
+    border-color 0.25s ease;
+}
+
+.inlineLink:hover {
+  color: var(--ink);
+  border-color: var(--ink);
 }
 
 /* ── Cards ───────────────────────────────────────────────────────────────── */
@@ -90,6 +113,7 @@
   text-decoration: none;
   color: inherit;
   overflow: hidden;
+  min-height: 400px;
   transition:
     border-color 0.35s ease,
     background 0.35s ease,
@@ -152,8 +176,9 @@
   font-size: 72px;
   line-height: 1;
   letter-spacing: 0.02em;
-  color: transparent;
-  -webkit-text-stroke: 1px var(--line);
+  /* color: transparent; */
+  mix-blend-mode: overlay;
+  /* -webkit-text-stroke: 1px var(--line); */
   transition: -webkit-text-stroke-color 0.35s ease;
   pointer-events: none;
   user-select: none;
@@ -191,17 +216,17 @@
 .cardText {
   margin: 10px 0 0;
   max-width: 42ch;
-  font-family: var(--font-barlow), sans-serif;
+  font-family: system-ui;
   font-size: 14px;
   font-weight: 300;
-  line-height: 1.6;
+  /* line-height: 1.6; */
   color: var(--ink-dim);
 }
 
 .rule {
   height: 1px;
   margin: 26px 0 20px;
-  background: var(--line);
+  background: var(--color-border-light);
 }
 
 .tags {
@@ -222,36 +247,67 @@
   white-space: nowrap;
 }
 
-.footerRow {
+/* ── Card actions ────────────────────────────────────────────────────────── */
+
+/* Pushed to the bottom so cards of unequal text length still line their buttons
+   up with each other. */
+.actions {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 24px;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 24px;
 }
 
-.enter {
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(10, 10, 10, 0.6);
   font-family: var(--font-ibm-mono), monospace;
   font-size: 10px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--ink-faint);
-  transition: color 0.35s ease;
+  text-decoration: none;
+  color: var(--ink-dim);
+  white-space: nowrap;
+  transition:
+    border-color 0.25s ease,
+    color 0.25s ease,
+    background 0.25s ease;
 }
 
-.card:hover .enter {
+.action:hover {
+  border-color: var(--line-hover);
   color: var(--ink);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* The primary action inverts — it's the one thing on the card that reads as a
+   button rather than a link. */
+.actionPrimary {
+  composes: action;
+  border-color: var(--ink);
+  background: var(--ink);
+  color: #0a0a0a;
+}
+
+.actionPrimary:hover {
+  border-color: #fff;
+  background: #fff;
+  color: #0a0a0a;
 }
 
 .arrow {
-  color: var(--ink-faint);
-  transition:
-    color 0.35s ease,
-    transform 0.35s ease;
+  transition: transform 0.25s ease;
 }
 
-.card:hover .arrow {
-  color: var(--ink);
-  transform: translateX(6px);
+.actionPrimary:hover .arrow {
+  transform: translateX(4px);
 }
 
 /* ── Corner marks ────────────────────────────────────────────────────────── */
