@@ -1144,7 +1144,7 @@ export default function SkyDome({
       horizonLine: 0.52,
       horizonSpread: 0.05,
       // ── Moon defaults ─────────────────────────────────────────────────────
-      moonElev: -8,
+      moonElev: 0,
       moonAzim: 183,
       moonColor: "#f0f1f2",
       moonGlowColor: "#0a7ace",

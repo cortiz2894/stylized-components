@@ -1,25 +1,48 @@
 import * as THREE from "three";
-import type { PineLeafUniforms } from "../uniforms";
+import type { BladeUniforms, PineLeafUniforms } from "../uniforms";
+import { PINE_WIND_UNIFORMS, PINE_WIND_VERTEX } from "../shaders/pineLeaf";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Pine-needle material — a stylized repaint over the GLB's own leaf texture.
+// Pine-needle materials — a stylized repaint of the GLB's foliage, plus wind.
 //
-// Foliage in scanned/photogrammetry assets is usually a photographic atlas on
-// alpha-masked quads. The photo is what makes it read as realistic; the alpha is
-// what gives it its shape. So we keep the map bound and overwrite ONLY .rgb,
-// right after <map_fragment> — `diffuseColor.a` still comes straight from the
-// texture, which matters twice over: alphaTest keeps cutting the needle
-// silhouette, and Three derives the SHADOW silhouette from map + alphaTest too.
-// Drop the texture and the canopy would cast rectangles.
+// COLOR. Foliage in scanned assets is usually a photographic atlas on alpha-
+// masked quads: the photo is what makes it read as realistic, the alpha is what
+// gives it its shape. So the map stays bound and only .rgb is overwritten, right
+// after <map_fragment> — `diffuseColor.a` still comes straight from the texture,
+// which matters twice: alphaTest keeps cutting the needle silhouette, and Three
+// derives the SHADOW silhouette from map + alphaTest too. Drop the texture and
+// the canopy casts rectangles.
+//
+// WIND. Same story as the flowers: Three renders the shadow map with its own
+// depth material, which knows nothing about our vertex displacement. It would
+// keep the needle-shaped shadow (map + alphaTest are copied over) but the shadow
+// would sit perfectly still while the canopy swayed out of it. Hence
+// makePineLeafDepthMaterial, which repeats the exact same wind.
+//
+// The wind uniforms come from the field's shared bag, so the trees and the grass
+// answer to one gust.
 // ─────────────────────────────────────────────────────────────────────────────
+
+type LeafWindUniforms = PineLeafUniforms &
+  Pick<BladeUniforms, "uTime" | "uWindDir" | "uWindSpeed" | "uWindFreq">;
+
+/** The canopy's own vertical extent — the wind's height mask is relative to it,
+ *  so branches near the trunk stay put while the outer foliage moves. */
+function canopyBounds(mesh: THREE.Mesh) {
+  if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+  const bb = mesh.geometry.boundingBox!;
+  return {
+    uLeafYMin: { value: bb.min.y } as THREE.IUniform<number>,
+    uLeafYMax: { value: bb.max.y } as THREE.IUniform<number>,
+  };
+}
 
 export function makePineLeafMaterial(
   src: THREE.MeshStandardMaterial,
   mesh: THREE.Mesh,
-  u: PineLeafUniforms,
+  u: LeafWindUniforms,
 ): THREE.MeshLambertMaterial {
-  if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
-  const bb = mesh.geometry.boundingBox!;
+  const bounds = canopyBounds(mesh);
 
   const mat = new THREE.MeshLambertMaterial({
     map: src.map,
@@ -28,19 +51,17 @@ export function makePineLeafMaterial(
     side: THREE.DoubleSide,
   });
 
-  // Per-mesh, so the gradient spans each canopy on its own instead of the whole
-  // scene's height range.
-  const uLeafYMin: THREE.IUniform<number> = { value: bb.min.y };
-  const uLeafYMax: THREE.IUniform<number> = { value: bb.max.y };
-
   mat.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, u, { uLeafYMin, uLeafYMax });
+    Object.assign(shader.uniforms, u, bounds);
 
     shader.vertexShader =
-      `varying vec3 vLeafLocal;\nvarying vec3 vLeafWorld;\n` + shader.vertexShader;
+      PINE_WIND_UNIFORMS +
+      `varying vec3 vLeafLocal;\nvarying vec3 vLeafWorld;\n` +
+      shader.vertexShader;
     shader.vertexShader = shader.vertexShader.replace(
       "#include <begin_vertex>",
-      `#include <begin_vertex>
+      PINE_WIND_VERTEX +
+        `
       vLeafLocal = position;
       vLeafWorld = ( modelMatrix * vec4( position, 1.0 ) ).xyz;`,
     );
@@ -88,6 +109,35 @@ export function makePineLeafMaterial(
         _leaf += ( uLeafVarColor - _leaf ) * _n * uLeafVarStrength;
         diffuseColor.rgb = max( _leaf, vec3( 0.0 ) ) * uLeafBrightness;
       }`,
+    );
+  };
+
+  return mat;
+}
+
+/** Assign to Mesh.customDepthMaterial so the canopy's shadow sways with it. */
+export function makePineLeafDepthMaterial(
+  src: THREE.MeshStandardMaterial,
+  mesh: THREE.Mesh,
+  u: LeafWindUniforms,
+): THREE.MeshDepthMaterial {
+  const bounds = canopyBounds(mesh);
+
+  const mat = new THREE.MeshDepthMaterial({
+    depthPacking: THREE.RGBADepthPacking,
+    // map + alphaTest are what give the shadow its needle shape.
+    map: src.map,
+    alphaTest: src.alphaTest > 0 ? src.alphaTest : 0.6,
+    side: THREE.DoubleSide,
+  });
+
+  mat.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, u, bounds);
+
+    shader.vertexShader = PINE_WIND_UNIFORMS + shader.vertexShader;
+    shader.vertexShader = shader.vertexShader.replace(
+      "#include <begin_vertex>",
+      PINE_WIND_VERTEX,
     );
   };
 

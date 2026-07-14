@@ -323,8 +323,8 @@ export function useGrassControls() {
           grWindStrength: {
             value: 0.1,
             min: 0,
-            max: 2,
-            step: 0.01,
+            max: 0.25,
+            step: 0.001,
             label: "Strength",
           },
           grWindSpeed: {
@@ -451,6 +451,37 @@ export function useGrassControls() {
             max: 20,
             step: 0.1,
             label: "Variation Scale",
+          },
+          // Direction, speed and frequency come from the Wind folder above — the
+          // canopies answer to the same gust as the blades. Only the amplitude
+          // and the flutter are leaf-specific.
+          grLeafWindStrength: {
+            value: 1.5,
+            min: 0,
+            max: 3,
+            step: 0.01,
+            label: "Wind Strength (0 = still)",
+          },
+          grLeafFlutterAmp: {
+            value: 0.35,
+            min: 0,
+            max: 2,
+            step: 0.05,
+            label: "Flutter Amount",
+          },
+          grLeafFlutterSpeed: {
+            value: 3.2,
+            min: 0,
+            max: 10,
+            step: 0.1,
+            label: "Flutter Speed",
+          },
+          grLeafDip: {
+            value: 1.0,
+            min: 0,
+            max: 1,
+            step: 0.05,
+            label: "Pendulum Dip",
           },
         },
         { collapsed: true },

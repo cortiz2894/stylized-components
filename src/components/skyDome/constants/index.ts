@@ -177,8 +177,8 @@ export const SKY_PRESETS: Record<SkyMode, SkyPreset> = {
     horizonSpread: 0.2,
 
     // Sun disc (reusing moon uniforms)
-    moonElev: 3,
-    moonAzim: 193,
+    moonElev: 10,
+    moonAzim: 258,
     moonColor: "#fffffd",
     moonGlowColor: "#ff8026",
     moonSize: 0.015,
@@ -341,8 +341,8 @@ export const SKY_PRESETS: Record<SkyMode, SkyPreset> = {
     horizonSpread: 1,
 
     // Sun disc
-    moonElev: 6,
-    moonAzim: 190,
+    moonElev: 10,
+    moonAzim: 258,
     moonColor: "#fff8dc",
     moonGlowColor: "#c48600",
     moonSize: 0.015,
@@ -398,9 +398,9 @@ export const SKY_PRESETS: Record<SkyMode, SkyPreset> = {
     ambient: { color: "#314c9d", intensity: 2.25 },
     filter: { color: "hsl(220, 70%, 55%)", opacity: 0.18 },
     light: {
-      ambientColor: "#223a80",
-      ambientIntensity: 1.65,
-      dirColor: "#5f85c7",
+      ambientColor: "#2f4b9d",
+      ambientIntensity: 3.1,
+      dirColor: "#bcd5ff",
       dirIntensity: 2,
       dirX: -121.0,
       dirY: 70.0,
@@ -432,8 +432,8 @@ export const SKY_PRESETS: Record<SkyMode, SkyPreset> = {
     cloudEdgeWidth: 0.05,
     cloudRimStrength: 0.1,
 
-    moonElev: 8,
-    moonAzim: 185,
+    moonElev: 10,
+    moonAzim: 258,
     // moonEmission: 0.1,
     moonSpotStrength: 0.9,
     moonPhasePos: 0.09999999999999998,

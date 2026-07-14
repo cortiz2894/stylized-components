@@ -88,7 +88,10 @@ export type GroundUniforms = {
   uGndReliefStrength: THREE.IUniform<number>;
 };
 
-/** Pine needles: an RGB repaint over the GLB texture's alpha. */
+/** Pine needles: an RGB repaint over the GLB texture's alpha, plus wind.
+ *  The wind itself (direction, speed, frequency, time) is the grass's — only the
+ *  amplitude and flutter below are leaf-specific, so trees and blades sway to the
+ *  same gust. */
 export type PineLeafUniforms = {
   uLeafBottom: THREE.IUniform<THREE.Color>;
   uLeafTop: THREE.IUniform<THREE.Color>;
@@ -97,6 +100,10 @@ export type PineLeafUniforms = {
   uLeafVarColor: THREE.IUniform<THREE.Color>;
   uLeafVarStrength: THREE.IUniform<number>;
   uLeafVarScale: THREE.IUniform<number>;
+  uLeafWindStrength: THREE.IUniform<number>; // 0 = still
+  uLeafFlutterAmp: THREE.IUniform<number>;
+  uLeafFlutterSpeed: THREE.IUniform<number>;
+  uLeafDip: THREE.IUniform<number>;
 };
 
 /** Trunk bark: color + AO + height maps, sampled by hand (see barkMaterial). */
@@ -229,6 +236,10 @@ export function createGrassFieldUniforms(): GrassFieldUniforms {
       uLeafVarColor: { value: new THREE.Color("#1e4430") },
       uLeafVarStrength: { value: 0.6 },
       uLeafVarScale: { value: 2.5 },
+      uLeafWindStrength: { value: 0.12 },
+      uLeafFlutterAmp: { value: 0.35 },
+      uLeafFlutterSpeed: { value: 3.2 },
+      uLeafDip: { value: 0.25 },
     },
 
     flower: {

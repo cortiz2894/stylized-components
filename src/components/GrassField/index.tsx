@@ -9,7 +9,10 @@ import { createGrassFieldUniforms } from "./uniforms";
 import { GRASS_PRESETS } from "./presets";
 import { MAX_ROCKS } from "./shaders/grassBlade";
 import { makeGroundMaterial } from "./materials/groundMaterial";
-import { makePineLeafMaterial } from "./materials/pineLeafMaterial";
+import {
+  makePineLeafMaterial,
+  makePineLeafDepthMaterial,
+} from "./materials/pineLeafMaterial";
 import { makeBarkMaterial } from "./materials/barkMaterial";
 import { scatterBlades, scatterFlowers } from "./utils/scatter";
 import {
@@ -205,7 +208,12 @@ export default function GrassField({
 
       const swapped = src.map((m) => {
         if (m.name === leafMaterial) {
-          return makePineLeafMaterial(m as THREE.MeshStandardMaterial, mesh, u.surface);
+          const std = m as THREE.MeshStandardMaterial;
+          // Without this the canopy would sway while its shadow stayed put:
+          // Three's shadow pass uses its own depth material, which knows nothing
+          // about our wind displacement.
+          mesh.customDepthMaterial = makePineLeafDepthMaterial(std, mesh, u.surface);
+          return makePineLeafMaterial(std, mesh, u.surface);
         }
         if (m.name === trunkMaterial) {
           return makeBarkMaterial(u.bark);
@@ -409,6 +417,10 @@ export default function GrassField({
     s.uLeafVarColor.value.set(grass.grLeafVarColor);
     s.uLeafVarStrength.value = grass.grLeafVarStrength;
     s.uLeafVarScale.value = grass.grLeafVarScale;
+    s.uLeafWindStrength.value = grass.grLeafWindStrength;
+    s.uLeafFlutterAmp.value = grass.grLeafFlutterAmp;
+    s.uLeafFlutterSpeed.value = grass.grLeafFlutterSpeed;
+    s.uLeafDip.value = grass.grLeafDip;
 
     // Bark
     b.uBarkScale.value = grass.grBarkScale;

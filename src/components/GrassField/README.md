@@ -107,3 +107,11 @@ materials for exactly this reason — if they drift apart, shadows desync.
 **Foliage keeps its texture.** Only the RGB is repainted; the alpha stays bound,
 because that is what cuts out the leaf silhouette *and* what Three uses to derive
 the shadow silhouette.
+
+**Anything that moves in a vertex shader needs a depth material.** Blades,
+flowers and canopies are all displaced by the wind, and Three's shadow pass runs
+its own depth material that knows nothing about that displacement — so a swaying
+thing would cast a perfectly still shadow. Flowers and canopies therefore ship a
+`customDepthMaterial` that replays the same wind GLSL (shared from `shaders/`,
+never copy-pasted, precisely so the two can't drift apart). Blades are the
+exception: they don't cast at all.

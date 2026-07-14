@@ -1,18 +1,24 @@
-.container {
+/* Bottom-left dock — stacks the switcher rows (Season, Sky). */
+.dock {
   position: fixed;
   bottom: 74px;
   left: 24px;
   z-index: 55;
   display: flex;
+  flex-direction: column;
   gap: 8px;
+  align-items: flex-start;
   pointer-events: none;
 }
 
-.label {
+.row {
   display: flex;
+  gap: 8px;
   align-items: center;
-  height: 36px;
-  padding-right: 4px;
+}
+
+.label {
+  width: 56px;
   font-family: var(--font-ibm-mono), monospace;
   font-size: 10px;
   letter-spacing: 0.15em;
@@ -25,7 +31,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 36px;
+  height: 32px;
   padding: 0 14px;
   border: 1px solid var(--overlay-border);
   border-radius: 4px;

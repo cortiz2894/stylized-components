@@ -9,9 +9,18 @@ import type { SceneMode } from "@/components/playground/SceneContent";
 import UIOverlay from "@/components/overlay/UIOverlay";
 import OverlayButtons from "@/components/overlay/OverlayButtons";
 import LoadingOverlay from "@/components/overlay/LoadingOverlay";
-import { SKY_PRESETS, type SkyPreset } from "@/components/skyDome/constants";
+import {
+  SKY_PRESETS,
+  type SkyPreset,
+  type SkyMode,
+} from "@/components/skyDome/constants";
+import { GRASS_PRESETS } from "@/components/GrassField/presets";
 import GrassSceneContent from "./GrassSceneContent";
-import PresetSwitcher from "./PresetSwitcher";
+import OverlaySwitcher from "./OverlaySwitcher";
+
+// Skies offered in the overlay. SkyDome's own Leva dropdown still lists every
+// preset — this is the short list worth a one-click switch.
+const SKY_CHOICES: SkyMode[] = ["day", "sunset", "night"];
 
 // Must clear the SkyDome radius (Leva "Sky > Dome Radius", default 900) or the
 // dome is clipped away by the far plane and the backdrop goes flat.
@@ -29,6 +38,11 @@ export default function GrassCanvas() {
   // Grass "season" preset, picked from the overlay. Only pushes values into the
   // Leva panel, so it can still be tweaked freely afterwards.
   const [grassPreset, setGrassPreset] = useState("default");
+
+  // Sky picked from the overlay. Handed to SkyDome as targetMode, which routes it
+  // through the same path as its Leva dropdown — so lighting and the color filter
+  // follow along, exactly as if the dropdown had been used.
+  const [skyMode, setSkyMode] = useState<SkyMode>("day");
 
   const handleModelLoaded = useCallback(() => {
     setIsLoadingModel(false);
@@ -73,6 +87,7 @@ export default function GrassCanvas() {
             activePreset={activePreset}
             onPresetChange={handlePresetChange}
             grassPreset={grassPreset}
+            skyMode={skyMode}
             onModelLoaded={handleModelLoaded}
           />
         </Canvas>
@@ -95,7 +110,28 @@ export default function GrassCanvas() {
         title="STYLIZED GRASS"
         subtitle="Wind-animated stylized grass field"
       />
-      <PresetSwitcher active={grassPreset} onSelect={setGrassPreset} />
+      <OverlaySwitcher
+        rows={[
+          {
+            label: "Season",
+            active: grassPreset,
+            onSelect: setGrassPreset,
+            options: Object.entries(GRASS_PRESETS).map(([key, p]) => ({
+              key,
+              label: p.label,
+            })),
+          },
+          {
+            label: "Sky",
+            active: skyMode,
+            onSelect: (key) => setSkyMode(key as SkyMode),
+            options: SKY_CHOICES.map((key) => ({
+              key,
+              label: SKY_PRESETS[key].label,
+            })),
+          },
+        ]}
+      />
       <OverlayButtons
         hideLeva={hideLeva}
         onToggleLeva={() => setHideLeva((v) => !v)}
