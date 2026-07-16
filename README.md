@@ -9,8 +9,8 @@ Each one is a **self-contained, reusable component** written in custom GLSL — 
 
 | Demo | Route | Component | Breakdown |
 |---|---|---|---|
-| 🌊 **Water — Anime Style** | `/water` | [`WaterFloor`](src/components/WaterFloor) — cel-shaded water, ripples, GPU wave simulation | [▶ YouTube](https://youtu.be/v5YoO8gPYPQ) |
-| 🌿 **Stylized Grass** | `/grass` | [`GrassField`](src/components/GrassField) — instanced grass + flowers, dirt blending, trampling | [▶ YouTube](https://www.youtube.com/watch?v=Pqyu7-DDmOM) |
+| 🌊 **Water — Anime Style** | `/water` | [`WaterFloor`](src/components/waterFloor) — cel-shaded water, ripples, GPU wave simulation | [▶ YouTube](https://youtu.be/v5YoO8gPYPQ) |
+| 🌿 **Stylized Grass** | `/grass` | [`GrassField`](src/components/grassField) — instanced grass + flowers, dirt blending, trampling | [▶ YouTube](https://www.youtube.com/watch?v=Pqyu7-DDmOM) |
 
 The index page (`/`) lists the demos.
 
@@ -47,7 +47,7 @@ The core of this project is the `WaterFloor` component — a modular, layered wa
 ### Architecture
 
 ```
-src/components/WaterFloor/
+src/components/waterFloor/
 ├── index.tsx                        # Main water surface (Voronoi cel-shading + ripple rings)
 ├── useWaterRipple.ts                # Hook — attach to any object to emit water ripples
 ├── shaders/                         # WaterFloor GLSL shaders
@@ -111,7 +111,7 @@ A composable hook that can be attached to any R3F object. Emits ripple events to
 The `/grass` route showcases `GrassField` — a stylized grass system that takes a GLB and turns it into a wind-animated field. It rewires the model **by mesh/material name**, so using your own model means passing names, not editing code.
 
 ```tsx
-import GrassField from "@/components/GrassField";
+import GrassField from "@/components/grassField";
 
 <Canvas shadows={{ type: PCFSoftShadowMap }}>
   <directionalLight castShadow position={[-9, 4, -0.5]} />
@@ -122,23 +122,30 @@ import GrassField from "@/components/GrassField";
 ### Architecture
 
 ```
-src/components/GrassField/
+src/components/grassField/
 ├── index.tsx              # Loads the GLB, rewires it, syncs uniforms each frame
 ├── uniforms.ts            # Every uniform in the field, in a single shared bag
 ├── presets.ts             # Named looks (Spring, Autumn…) — pushed into the Leva panel
 ├── shaders/               # Raw GLSL, injected via onBeforeCompile
 │   ├── groundMask.ts      # Procedural dirt mask — the shared source of truth
-│   ├── grassBlade.ts      # Wind, dirt shortening, rock trampling, per-blade shadow
-│   └── flower.ts          # Wind + palette lookup + dirt culling
+│   ├── grassBlade.ts      # Wind, dirt shortening, rock trampling, soft shadow
+│   ├── flower.ts          # Wind + palette lookup + dirt culling
+│   └── debug.ts           # Breakdown "Debug View" — paints intermediate values
 ├── materials/             # One factory per material
 │   ├── bladeMaterial.ts   # Blades (Lambert + injected GLSL)
 │   ├── groundMaterial.ts  # Ground: grass tint, dirt patches, fake relief
 │   ├── flowerMaterial.ts  # Flowers + their custom depth material for shadows
 │   ├── pineLeafMaterial.ts# Repaints foliage RGB, keeps the texture's alpha
 │   └── barkMaterial.ts    # Bark color + AO + height, tint-able
-└── utils/
-    ├── scatter.ts         # Area-weighted placement of blades and flowers
-    └── controls.ts        # Leva panels
+├── utils/
+│   ├── scatter.ts         # Area-weighted placement of blades and flowers
+│   └── controls.ts        # Leva panels
+└── debug/                 # Breakdown visualisers — off by default, deletable
+    ├── GrassBreakdown.tsx # Wires the visualisers + their Leva toggles
+    ├── DebugScatter.tsx   # How blades are placed (area-weighted sampling)
+    ├── DebugBlade.tsx     # A single blade, blown up
+    ├── DebugMaskPlane.tsx # The dirt mask as grayscale
+    └── DebugWind.tsx      # The wind field, painted on the ground
 ```
 
 ### Features

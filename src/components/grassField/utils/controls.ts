@@ -338,35 +338,6 @@ export function useGrassControls() {
         { collapsed: false },
       ),
 
-      // ── Breakdown ──────────────────────────────────────────────────────────
-      // For the video, and for debugging: each channel paints an intermediate
-      // value the shader already computes, so what you see IS the real shader.
-      Breakdown: folder(
-        {
-          grDebugChannel: {
-            value: 0,
-            options: {
-              Off: 0,
-              "Height Mask (vBH)": 1,
-              "Dirt Mask": 2,
-              "Rock Influence": 3,
-              "Shadow Factor": 4,
-              "Translucency Only": 5,
-              "Blade Normals": 6,
-            },
-            label: "Debug View",
-          },
-          // Off = the world-space wind vector is applied as if it were local, so
-          // every blade leans along its own random Y rotation and the field fans
-          // out. The bug the transpose in the shader exists to fix.
-          grWindFixLocal: {
-            value: true,
-            label: "Fix Wind Space (off = fan-out bug)",
-          },
-        },
-        { collapsed: true },
-      ),
-
       Wind: folder(
         {
           grWindStrength: {
@@ -531,6 +502,35 @@ export function useGrassControls() {
             max: 1,
             step: 0.05,
             label: "Pendulum Dip",
+          },
+        },
+        { collapsed: true },
+      ),
+
+      // ── Breakdown / debug (last, and off by default) ────────────────────────
+      // Shader-level teaching switches, filmed for the breakdown video. The Debug
+      // View repaints the blade with an intermediate value the shader already
+      // computes (so it IS the real shader — see shaders/debug.ts); Fix Wind Space
+      // can reintroduce the fan-out bug on purpose. The scene-level visualisers
+      // are separate — see debug/GrassBreakdown.
+      Breakdown: folder(
+        {
+          grDebugChannel: {
+            value: 0,
+            options: {
+              Off: 0,
+              "Height Mask (vBH)": 1,
+              "Dirt Mask": 2,
+              "Rock Influence": 3,
+              "Shadow Factor": 4,
+              "Translucency Only": 5,
+              "Blade Normals": 6,
+            },
+            label: "Debug View",
+          },
+          grWindFixLocal: {
+            value: true,
+            label: "Fix Wind Space (off = fan-out bug)",
           },
         },
         { collapsed: true },

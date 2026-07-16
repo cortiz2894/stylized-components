@@ -5,12 +5,12 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { useControls } from "leva";
 import type { SceneMode } from "./SceneContent";
-import WaterFloor from "../WaterFloor";
-import SeabedFloor from "../WaterFloor/components/SeabedFloor";
-import WaterSparkles from "../WaterFloor/components/WaterSparkles";
-import ShadowCatcher from "../WaterFloor/components/ShadowCatcher";
-import WaterDepthIntersection from "../WaterFloor/components/WaterDepthIntersection";
-import WaterWaveSimulation from "../WaterFloor/components/WaterWaveSimulation";
+import WaterFloor from "../waterFloor";
+import SeabedFloor from "../waterFloor/components/SeabedFloor";
+import WaterSparkles from "../waterFloor/components/WaterSparkles";
+import ShadowCatcher from "../waterFloor/components/ShadowCatcher";
+import WaterDepthIntersection from "../waterFloor/components/WaterDepthIntersection";
+import WaterWaveSimulation from "../waterFloor/components/WaterWaveSimulation";
 
 
 // ─────────────────────────────────────────────────────────────────────────────

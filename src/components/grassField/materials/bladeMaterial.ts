@@ -8,6 +8,7 @@ import {
   GRASS_BLADE_VERTEX,
   GRASS_SHADOW_VERTEX,
 } from "../shaders/grassBlade";
+import { DEBUG_FRAGMENT_UNIFORMS, DEBUG_VIEW_FRAGMENT } from "../shaders/debug";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Blade material.
@@ -127,8 +128,7 @@ export function makeBladeMaterial(u: BladeUniforms): THREE.MeshLambertMaterial {
       varying vec3  vWorldPos;
       varying vec3  vBladeN;
       varying float vDirt;
-      varying float vRockInfl;
-      uniform int   uDebugChannel;
+      ${DEBUG_FRAGMENT_UNIFORMS}
       uniform vec3  uGrassBottom;
       uniform vec3  uGrassTop;
       uniform float uBrightness;
@@ -218,23 +218,8 @@ export function makeBladeMaterial(u: BladeUniforms): THREE.MeshLambertMaterial {
 
         gl_FragColor.rgb += _trans;
 
-        // ── Breakdown views ──────────────────────────────────────────────────
-        // Each channel paints one intermediate value the shader already computed,
-        // so the debug view IS the real shader — not a parallel scene that can
-        // drift out of sync with it. See utils/controls.ts for the dropdown.
-        if ( uDebugChannel == 1 ) {
-          gl_FragColor.rgb = vec3( vBH );                    // height mask
-        } else if ( uDebugChannel == 2 ) {
-          gl_FragColor.rgb = vec3( vDirt );                  // dirt mask
-        } else if ( uDebugChannel == 3 ) {
-          gl_FragColor.rgb = vec3( vRockInfl );              // rock influence
-        } else if ( uDebugChannel == 4 ) {
-          gl_FragColor.rgb = vec3( _shadow );                // shadow factor
-        } else if ( uDebugChannel == 5 ) {
-          gl_FragColor.rgb = _trans;                         // translucency alone
-        } else if ( uDebugChannel == 6 ) {
-          gl_FragColor.rgb = normalize( vBladeN ) * 0.5 + 0.5; // true blade normal
-        }
+        // Breakdown / debug views (0 = off = production). See shaders/debug.ts.
+        ${DEBUG_VIEW_FRAGMENT}
       }`,
     );
   };

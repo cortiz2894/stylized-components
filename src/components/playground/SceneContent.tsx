@@ -6,8 +6,8 @@ import SceneLighting from "./SceneLighting";
 import SceneEnvironment from "./SceneEnvironment";
 import GridFloor from "./GridFloor";
 import PostProcessing from "./PostProcessing";
-import { DragonBalls } from "../WaterFloor/models/DragonBalls";
-import { Feather } from "../WaterFloor/models/Feather";
+import { DragonBalls } from "../waterFloor/models/DragonBalls";
+import { Feather } from "../waterFloor/models/Feather";
 
 export type SceneMode = "Background" | "Frame";
 

@@ -6,7 +6,7 @@ ground mesh, procedural dirt patches, trampling around rocks, backlit
 translucency, and repainted foliage/bark.
 
 ```tsx
-import GrassField from "@/components/GrassField";
+import GrassField from "@/components/grassField";
 
 <Canvas shadows={{ type: PCFSoftShadowMap }} camera={{ far: 3000 }}>
   <ambientLight />

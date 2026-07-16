@@ -7,12 +7,8 @@ import PostProcessing from "@/components/playground/PostProcessing";
 import type { SceneMode } from "@/components/playground/SceneContent";
 import SkyDome from "@/components/skyDome/SkyDome";
 import type { SkyPreset, SkyMode } from "@/components/skyDome/constants";
-import { useControls } from "leva";
-import GrassField from "@/components/GrassField";
-import DebugScatter from "@/components/GrassField/debug/DebugScatter";
-import DebugBlade from "@/components/GrassField/debug/DebugBlade";
-import DebugMaskPlane from "@/components/GrassField/debug/DebugMaskPlane";
-import DebugWind from "@/components/GrassField/debug/DebugWind";
+import GrassField from "@/components/grassField";
+import { useGrassBreakdown } from "@/components/grassField/debug/GrassBreakdown";
 import GrassLighting from "./GrassLighting";
 import ShadowController from "./ShadowController";
 
@@ -35,23 +31,8 @@ export default function GrassSceneContent({
   skyMode,
   onModelLoaded,
 }: GrassSceneContentProps) {
-  // Breakdown visualisers. Each one is off by default and can hide the field, so
-  // a shot can be composed with nothing but the thing being explained.
-  const { dbgScatter, dbgBlade, dbgMask, dbgWind, dbgHideField } = useControls(
-    "Breakdown",
-    {
-      dbgScatter: { value: false, label: "Scatter (placement)" },
-      dbgBlade: { value: false, label: "Single Blade" },
-      dbgMask: { value: false, label: "Dirt Mask Plane" },
-      dbgWind: { value: false, label: "Wind Field" },
-      dbgHideField: { value: true, label: "Hide Grass Field" },
-    },
-  );
-
-  // The wind plane is the one visualiser meant to be seen WITH the grass: the
-  // bands crossing the ground are the gust the blades are leaning to.
-  const anyDebug = dbgScatter || dbgBlade || dbgMask;
-  const showField = !(anyDebug && dbgHideField);
+  // Breakdown visualisers — all the scene-level debug lives in one place now.
+  const { hideField, view } = useGrassBreakdown();
 
   // Re-bake the frozen shadow map once the field's model is ready.
   const [bakeSignal, setBakeSignal] = useState(0);
@@ -80,17 +61,14 @@ export default function GrassSceneContent({
         onPresetChange={onPresetChange}
       />
       <Suspense fallback={null}>
-        {showField && (
+        {!hideField && (
           <GrassField
             preset={grassPreset}
             wireframe={mode === "Frame"}
             onLoaded={handleModelLoaded}
           />
         )}
-        {dbgScatter && <DebugScatter />}
-        {dbgBlade && <DebugBlade />}
-        {dbgMask && <DebugMaskPlane />}
-        {dbgWind && <DebugWind />}
+        {view}
       </Suspense>
       <PostProcessing
         folder="Grass Postprocessing"

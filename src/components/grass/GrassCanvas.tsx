@@ -15,7 +15,7 @@ import {
   type SkyPreset,
   type SkyMode,
 } from "@/components/skyDome/constants";
-import { GRASS_PRESETS } from "@/components/GrassField/presets";
+import { GRASS_PRESETS } from "@/components/grassField/presets";
 import GrassSceneContent from "./GrassSceneContent";
 import OverlaySwitcher from "./OverlaySwitcher";
 

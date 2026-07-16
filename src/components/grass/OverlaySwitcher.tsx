@@ -17,7 +17,7 @@ export interface SwitcherRow {
 
 /** Bottom-left dock of preset pickers (season, sky). Each row just reflects
  *  presets that live with their own system — GrassField/presets.ts and
- *  skyDome/constants — so adding a preset there shows up here for free. */
+ *  SkyDome/constants — so adding a preset there shows up here for free. */
 export default function OverlaySwitcher({ rows }: { rows: SwitcherRow[] }) {
   return (
     <div
