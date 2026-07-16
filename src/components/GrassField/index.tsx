@@ -209,10 +209,10 @@ export default function GrassField({
       const swapped = src.map((m) => {
         if (m.name === leafMaterial) {
           const std = m as THREE.MeshStandardMaterial;
-          // Without this the canopy would sway while its shadow stayed put:
-          // Three's shadow pass uses its own depth material, which knows nothing
-          // about our wind displacement.
-          mesh.customDepthMaterial = makePineLeafDepthMaterial(std, mesh, u.surface);
+          // Static shadow (no wind) — a swaying canopy's moving shadow edge
+          // flickers on the grass, and its sway is invisible in a soft high blob
+          // anyway. Keeping it static also lets the shadow map be frozen entirely.
+          mesh.customDepthMaterial = makePineLeafDepthMaterial(std);
           return makePineLeafMaterial(std, mesh, u.surface);
         }
         if (m.name === trunkMaterial) {
@@ -264,6 +264,7 @@ export default function GrassField({
         minLength: grass.grMinLength,
         maxLength: grass.grMaxLength,
         tiltMax: grass.grTiltMax,
+        segments: grass.grSegments,
       }),
     );
 
@@ -298,6 +299,7 @@ export default function GrassField({
     grass.grMinLength,
     grass.grMaxLength,
     grass.grTiltMax,
+    grass.grSegments,
     flowers.flEnabled,
     flowers.flDensity,
     flowers.flMaxCount,
@@ -377,14 +379,18 @@ export default function GrassField({
     s.uBrightness.value = grass.grBrightness;
 
     s.uShadowStrength.value = grass.grShadowStrength;
-    s.uPerBladeShadow.value = grass.grPerBladeShadow;
+    s.uShadowSamples.value = grass.grShadowSamples;
     s.uShadowSampleY.value = grass.grShadowSampleY;
+    s.uShadowRadius.value = grass.grShadowRadius;
 
     s.uTransColor.value.set(grass.grTransColor);
     s.uTransStrength.value = grass.grTransStrength;
     s.uTransPower.value = grass.grTransPower;
     s.uTransTip.value = grass.grTransTip;
     s.uTransShadow.value = grass.grTransShadow;
+
+    s.uDebugChannel.value = grass.grDebugChannel;
+    s.uWindFixLocal.value = grass.grWindFixLocal ? 1 : 0;
 
     s.uRockFlatten.value = grass.grRockFlatten;
     s.uRockBend.value = grass.grRockBend;

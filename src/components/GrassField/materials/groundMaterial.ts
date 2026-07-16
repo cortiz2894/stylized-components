@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { BladeUniforms, GroundUniforms } from "../uniforms";
 import { GROUND_MASK_UNIFORMS, GROUND_MASK_GLSL } from "../shaders/groundMask";
+import { MAX_SHADOW_TAPS } from "../shaders/grassBlade";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Ground material — the surface the blades grow out of.
@@ -20,6 +21,12 @@ import { GROUND_MASK_UNIFORMS, GROUND_MASK_GLSL } from "../shaders/groundMask";
 //  3. DIRT. Both sample the same groundDirt() mask, so the ground paints earth
 //     exactly where the blades thin out into it.
 //
+//  4. SHADOW. The blades disable Lambert's built-in shadow and apply their own
+//     soft, ring-averaged one scaled by uShadowStrength (see bladeMaterial). The
+//     ground has to do the SAME, or bare earth ends up with Lambert's full-
+//     strength hard shadow while the grass over it barely darkens — the two read
+//     as different shadow "levels", most visible where grass thins into dirt.
+//
 // The dirt texture (variation + grain) is weighted by that same mask: it is
 // EARTH texture, so it must not appear under the grass, where the ground has to
 // stay exactly the blades' bottom color.
@@ -36,10 +43,15 @@ export function makeGroundMaterial(
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, u);
 
-    // ── Vertex: flatten the normal, carry world XZ for the mask ──────────────
+    // ── Vertex: flatten the normal, carry world XZ, build the shadow ring ────
     shader.vertexShader =
-      `uniform float uFlatFloorNormal;\nvarying vec2 vGndXZ;\n` +
-      shader.vertexShader;
+      `#define GRASS_SHADOW_TAPS ${MAX_SHADOW_TAPS}
+      uniform float uFlatFloorNormal;
+      uniform float uShadowRadius;
+      varying vec2 vGndXZ;
+      #ifdef USE_SHADOWMAP
+        varying vec4 vGndShCoord[ GRASS_SHADOW_TAPS ];
+      #endif\n` + shader.vertexShader;
     shader.vertexShader = shader.vertexShader.replace(
       "#include <defaultnormal_vertex>",
       `#include <defaultnormal_vertex>
@@ -51,10 +63,29 @@ export function makeGroundMaterial(
       `#include <begin_vertex>
       vGndXZ = ( modelMatrix * vec4( transformed, 1.0 ) ).xz;`,
     );
+    // Same soft-shadow scheme as the blades: disable Lambert's own shadow (its
+    // world position lands outside the frustum → getShadow → fully lit) and build
+    // a ring of shadow coords around this surface point, at radius uShadowRadius,
+    // for the fragment to average.
+    shader.vertexShader = shader.vertexShader.replace(
+      "#include <worldpos_vertex>",
+      `#if defined( USE_ENVMAP ) || defined( DISTANCE ) || defined ( USE_SHADOWMAP )
+        vec4 worldPosition = vec4( 1e6, 1e6, 1e6, 1.0 );
+      #endif
+      #if defined( USE_SHADOWMAP ) && NUM_DIR_LIGHT_SHADOWS > 0
+        vec3 _gwp = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;
+        for ( int _k = 0; _k < GRASS_SHADOW_TAPS; _k++ ) {
+          float _a   = 6.2831853 * ( float( _k ) + 0.5 ) / float( GRASS_SHADOW_TAPS );
+          vec2  _off = vec2( cos( _a ), sin( _a ) ) * uShadowRadius;
+          vGndShCoord[ _k ] = directionalShadowMatrix[ 0 ] * vec4( _gwp + vec3( _off.x, 0.0, _off.y ), 1.0 );
+        }
+      #endif`,
+    );
 
     // ── Fragment ─────────────────────────────────────────────────────────────
     shader.fragmentShader =
-      `varying vec2  vGndXZ;
+      `#define GRASS_SHADOW_TAPS ${MAX_SHADOW_TAPS}
+      varying vec2  vGndXZ;
       uniform vec3  uGrassBottom;
       uniform float uBrightness;
       uniform float uTintFloor;
@@ -64,10 +95,43 @@ export function makeGroundMaterial(
       uniform float uGndGrainScale;
       uniform float uGndGrainStrength;
       uniform float uGndReliefScale;
-      uniform float uGndReliefStrength;\n` +
+      uniform float uGndReliefStrength;
+      uniform int   uShadowSamples;
+      uniform float uShadowStrength;
+      #ifdef USE_SHADOWMAP
+        varying vec4 vGndShCoord[ GRASS_SHADOW_TAPS ];
+      #endif\n` +
       GROUND_MASK_UNIFORMS +
       GROUND_MASK_GLSL +
       shader.fragmentShader;
+
+    // Average the shadow ring and darken by uShadowStrength — the exact same
+    // treatment the blades get, so ground and grass share one shadow level.
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "#include <opaque_fragment>",
+      `#include <opaque_fragment>
+      #if defined( USE_SHADOWMAP ) && NUM_DIR_LIGHT_SHADOWS > 0
+        {
+          DirectionalLightShadow _dls = directionalLightShadows[ 0 ];
+          float _sSum = 0.0;
+          int   _sN   = 0;
+          for ( int _k = 0; _k < GRASS_SHADOW_TAPS; _k++ ) {
+            if ( _k >= uShadowSamples ) break;
+            _sSum += getShadow(
+              directionalShadowMap[ 0 ],
+              _dls.shadowMapSize,
+              _dls.shadowIntensity,
+              _dls.shadowBias,
+              _dls.shadowRadius,
+              vGndShCoord[ _k ]
+            );
+            _sN++;
+          }
+          float _gShadow = _sSum / float( max( _sN, 1 ) );
+          gl_FragColor.rgb *= ( 1.0 - uShadowStrength * ( 1.0 - _gShadow ) );
+        }
+      #endif`,
+    );
 
     // Fake relief: tilt the shading normal by the SLOPE of a noise field (central
     // differences in world XZ). The geometry stays flat, but NdotL now varies, so

@@ -35,8 +35,10 @@ export function seededLcg(seed: number) {
   };
 }
 
-/** Triangles of a mesh in world space, with a cumulative-area table. */
-interface SurfaceSampler {
+/** Triangles of a mesh in world space, with a cumulative-area table.
+ *  Exported (with buildSurfaceSampler/samplePoint) so the breakdown's
+ *  DebugScatter can visualise the exact same sampling the field uses. */
+export interface SurfaceSampler {
   /** Flat [ax,ay,az, bx,by,bz, cx,cy,cz] per triangle. */
   verts: number[];
   /** cumArea[i] = total area up to and including triangle i. */
@@ -45,7 +47,7 @@ interface SurfaceSampler {
 }
 
 /** `mesh.matrixWorld` must already be resolved by the caller. */
-function buildSurfaceSampler(mesh: THREE.Mesh): SurfaceSampler {
+export function buildSurfaceSampler(mesh: THREE.Mesh): SurfaceSampler {
   const pos = mesh.geometry.attributes.position as THREE.BufferAttribute;
   const idx = mesh.geometry.index;
   const mw = mesh.matrixWorld;
@@ -85,7 +87,7 @@ function buildSurfaceSampler(mesh: THREE.Mesh): SurfaceSampler {
 }
 
 /** Area-weighted random point on the sampled surface. */
-function samplePoint(
+export function samplePoint(
   s: SurfaceSampler,
   rng: () => number,
   out: THREE.Vector3,
@@ -131,6 +133,8 @@ export interface BladeScatterOptions {
   maxLength: number;
   /** Max random lean, in radians. */
   tiltMax: number;
+  /** Height segments per blade — the bend-quality dial. See makeBladeGeometry. */
+  segments?: number;
 }
 
 export function scatterBlades(
@@ -147,7 +151,11 @@ export function scatterBlades(
   mat.transparent = true;
   mat.depthWrite = true;
 
-  const im = new THREE.InstancedMesh(makeBladeGeometry(), mat, count);
+  const im = new THREE.InstancedMesh(
+    makeBladeGeometry(opts.segments),
+    mat,
+    count,
+  );
   // Blades don't cast: at this density the shadow map can't resolve them anyway,
   // and the field would shadow itself into mush. They only receive.
   im.castShadow = false;

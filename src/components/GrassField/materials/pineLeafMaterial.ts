@@ -115,31 +115,27 @@ export function makePineLeafMaterial(
   return mat;
 }
 
-/** Assign to Mesh.customDepthMaterial so the canopy's shadow sways with it. */
+/**
+ * Depth material for the canopy shadow. Deliberately STATIC — it does NOT replay
+ * the wind the visible canopy uses.
+ *
+ * A swaying canopy casts a shadow with a moving edge, and a moving hard edge
+ * flickers as it sweeps across the grass (aliasing in the shadow map that no
+ * amount of receiver-side softening fully hides). A tree's cast shadow is a soft,
+ * high blob, so the sway is nearly invisible in it anyway — freezing it costs
+ * nothing visually and removes the biggest flicker source. It also lets the whole
+ * shadow map be frozen (see ShadowController), since every caster is then static.
+ *
+ * Only `map` + `alphaTest` are kept, which is what gives the shadow its needle
+ * silhouette; MeshDepthMaterial handles the alpha cut-out on its own.
+ */
 export function makePineLeafDepthMaterial(
   src: THREE.MeshStandardMaterial,
-  mesh: THREE.Mesh,
-  u: LeafWindUniforms,
 ): THREE.MeshDepthMaterial {
-  const bounds = canopyBounds(mesh);
-
-  const mat = new THREE.MeshDepthMaterial({
+  return new THREE.MeshDepthMaterial({
     depthPacking: THREE.RGBADepthPacking,
-    // map + alphaTest are what give the shadow its needle shape.
     map: src.map,
     alphaTest: src.alphaTest > 0 ? src.alphaTest : 0.6,
     side: THREE.DoubleSide,
   });
-
-  mat.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, u, bounds);
-
-    shader.vertexShader = PINE_WIND_UNIFORMS + shader.vertexShader;
-    shader.vertexShader = shader.vertexShader.replace(
-      "#include <begin_vertex>",
-      PINE_WIND_VERTEX,
-    );
-  };
-
-  return mat;
 }
