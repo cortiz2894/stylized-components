@@ -70,6 +70,17 @@ export function useGrassControls() {
             step: 0.01,
             label: "Max Tilt (rebuilds)",
           },
+          // Bend quality. Wind moves vertices, so a blade bends along a POLYLINE
+          // with one joint per segment — at high wind, 3 segments starts showing
+          // its elbows. It's the only param here that costs vertices, and it pays
+          // that cost 50,000 times over.
+          grSegments: {
+            value: 3,
+            min: 1,
+            max: 8,
+            step: 1,
+            label: "Segments (rebuilds — 2·n−1 tris)",
+          },
         },
         { collapsed: false },
       ),
@@ -109,25 +120,34 @@ export function useGrassControls() {
             label: "Brightness",
           },
           grShadowStrength: {
-            value: 1,
+            value: 0.35,
             min: 0,
             max: 1,
             step: 0.01,
-            label: "Shadow Strength",
+            label: "Shadow Strength (how dark)",
           },
-          // One shadow sample per blade instead of per fragment, so a blade is
-          // never half-lit and the shadow edge follows the grass silhouette
-          // instead of cutting a hard line across it.
-          grPerBladeShadow: {
-            value: 0.55,
+          // The shadow is sampled at a RING of points around each blade and
+          // averaged into a soft penumbra. Radius is the main lever: widen it and
+          // a moving caster edge (swaying trees) fades across the grass instead of
+          // snapping on and off — which is what stops the wind flicker.
+          grShadowRadius: {
+            value: 0,
             min: 0,
-            max: 1,
-            step: 0.05,
-            label: "Per-Blade Shadow",
+            max: 1.5,
+            step: 0.01,
+            label: "Shadow Softness (radius)",
+          },
+          // How many taps make up the ring. More = smoother penumbra, more cost.
+          grShadowSamples: {
+            value: 1,
+            min: 1,
+            max: 4,
+            step: 1,
+            label: "Shadow Taps",
           },
           grShadowSampleY: {
-            value: 0.6,
-            min: 0,
+            value: 0.15,
+            min: 0.0,
             max: 1,
             step: 0.05,
             label: "Shadow Sample Height",
@@ -316,6 +336,35 @@ export function useGrassControls() {
           },
         },
         { collapsed: false },
+      ),
+
+      // ── Breakdown ──────────────────────────────────────────────────────────
+      // For the video, and for debugging: each channel paints an intermediate
+      // value the shader already computes, so what you see IS the real shader.
+      Breakdown: folder(
+        {
+          grDebugChannel: {
+            value: 0,
+            options: {
+              Off: 0,
+              "Height Mask (vBH)": 1,
+              "Dirt Mask": 2,
+              "Rock Influence": 3,
+              "Shadow Factor": 4,
+              "Translucency Only": 5,
+              "Blade Normals": 6,
+            },
+            label: "Debug View",
+          },
+          // Off = the world-space wind vector is applied as if it were local, so
+          // every blade leans along its own random Y rotation and the field fans
+          // out. The bug the transpose in the shader exists to fix.
+          grWindFixLocal: {
+            value: true,
+            label: "Fix Wind Space (off = fan-out bug)",
+          },
+        },
+        { collapsed: true },
       ),
 
       Wind: folder(

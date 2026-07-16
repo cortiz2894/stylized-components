@@ -3,6 +3,7 @@ import type { BladeUniforms } from "../uniforms";
 import { GROUND_MASK_UNIFORMS, GROUND_MASK_GLSL } from "../shaders/groundMask";
 import {
   MAX_ROCKS,
+  MAX_SHADOW_TAPS,
   GRASS_BLADE_UNIFORMS,
   GRASS_BLADE_VERTEX,
   GRASS_SHADOW_VERTEX,
@@ -24,31 +25,65 @@ import {
 // it separately as vBladeN.
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** Half-width of the blade at normalized height t. Tapers to a point at the tip.
+ *  The exponent is what gives the blade its slightly concave silhouette instead
+ *  of a straight-sided triangle. */
+function bladeHalfWidth(t: number): number {
+  return 0.5 * Math.pow(1 - t, 1.2);
+}
+
 /**
- * Blade geometry — unit size (base width = 1, height = 1), flat in XY.
+ * Blade geometry — unit size (base width = 1, height = 1), flat in XY. The
+ * instance matrix is what scales it to a real blade (roughly 0.06 × 0.25, i.e.
+ * far more slender than the unit shape suggests).
  *
- *    v6  ← tip  (y = 1.00)
- *   v4-v5       (y = 0.66)
- *   v2-v3       (y = 0.33)
+ * With `segments = 3` (the default):
+ *
+ *    v6  ← tip   (y = 1.00)
+ *   v4-v5        (y = 0.66)
+ *   v2-v3        (y = 0.33)
  *   v0-v1 ← base (y = 0.00)
+ *
+ * SEGMENTS is a bend-quality dial, and the only one that costs vertices. Wind is
+ * applied per-vertex against a squared height mask, so a blade doesn't bend along
+ * a curve — it bends along a POLYLINE with one joint per segment. Three segments
+ * is enough at low wind; crank the wind up and the elbows start to show, and more
+ * segments buy a smoother arc.
+ *
+ * Note the topology caps what's reachable: a tapered strip has
+ * `2 · segments − 1` triangles, so the triangle count is always odd —
+ * 5, 7, 9, 11 — never 6.
  */
-export function makeBladeGeometry(): THREE.BufferGeometry {
-  // prettier-ignore
-  const positions = new Float32Array([
-    -0.5,  0.00, 0,   // v0  base-left
-     0.5,  0.00, 0,   // v1  base-right
-    -0.35, 0.33, 0,   // v2
-     0.35, 0.33, 0,   // v3
-    -0.15, 0.66, 0,   // v4
-     0.15, 0.66, 0,   // v5
-     0.00, 1.00, 0,   // v6  tip
-  ]);
-  // prettier-ignore
-  const indices = new Uint16Array([0,2,1, 1,2,3, 2,4,3, 3,4,5, 4,6,5]);
+export function makeBladeGeometry(segments = 3): THREE.BufferGeometry {
+  const seg = Math.max(1, Math.round(segments));
+
+  // Two vertices per row, plus a single vertex at the tip.
+  const positions = new Float32Array((seg * 2 + 1) * 3);
+  for (let i = 0; i < seg; i++) {
+    const t = i / seg;
+    const w = bladeHalfWidth(t);
+    positions[i * 6 + 0] = -w;
+    positions[i * 6 + 1] = t;
+    positions[i * 6 + 3] = w;
+    positions[i * 6 + 4] = t;
+  }
+  positions[seg * 6 + 1] = 1; // tip, at x = 0
+
+  // Quad per segment (two triangles), capped by one triangle at the tip.
+  const indices: number[] = [];
+  for (let i = 0; i < seg - 1; i++) {
+    const l = i * 2;
+    const r = l + 1;
+    const nl = l + 2;
+    const nr = l + 3;
+    indices.push(l, nl, r, r, nl, nr);
+  }
+  const lastL = (seg - 1) * 2;
+  indices.push(lastL, seg * 2, lastL + 1);
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  geo.setIndex(new THREE.BufferAttribute(indices, 1));
+  geo.setIndex(indices);
   geo.computeVertexNormals();
   return geo;
 }
@@ -64,6 +99,7 @@ export function makeBladeMaterial(u: BladeUniforms): THREE.MeshLambertMaterial {
       "#include <common>",
       `#include <common>
       #define MAX_ROCKS ${MAX_ROCKS}
+      #define GRASS_SHADOW_TAPS ${MAX_SHADOW_TAPS}
       ${GROUND_MASK_UNIFORMS}
       ${GROUND_MASK_GLSL}
       ${GRASS_BLADE_UNIFORMS}`,
@@ -86,10 +122,13 @@ export function makeBladeMaterial(u: BladeUniforms): THREE.MeshLambertMaterial {
 
     // ── Fragment ─────────────────────────────────────────────────────────────
     shader.fragmentShader =
-      `varying float vBH;
+      `#define GRASS_SHADOW_TAPS ${MAX_SHADOW_TAPS}
+      varying float vBH;
       varying vec3  vWorldPos;
       varying vec3  vBladeN;
       varying float vDirt;
+      varying float vRockInfl;
+      uniform int   uDebugChannel;
       uniform vec3  uGrassBottom;
       uniform vec3  uGrassTop;
       uniform float uBrightness;
@@ -98,13 +137,18 @@ export function makeBladeMaterial(u: BladeUniforms): THREE.MeshLambertMaterial {
       uniform float uGradPower;
       uniform vec3  uDirtColor;
       uniform float uDirtBlend;
+      uniform int   uShadowSamples;
+      uniform float uShadowStrength;
       uniform vec3  uSunDir;
       uniform vec3  uSunColor;
       uniform vec3  uTransColor;
       uniform float uTransStrength;
       uniform float uTransPower;
       uniform float uTransTip;
-      uniform float uTransShadow;\n` + shader.fragmentShader;
+      uniform float uTransShadow;
+      #ifdef USE_SHADOWMAP
+        varying vec4 vGrassShCoord[ GRASS_SHADOW_TAPS ];
+      #endif\n` + shader.fragmentShader;
 
     // Lambert applies (ambient + directional × NdotL × shadow) on top of
     // diffuseColor, so overriding it here is all the color control we need.
@@ -124,43 +168,73 @@ export function makeBladeMaterial(u: BladeUniforms): THREE.MeshLambertMaterial {
       vec4 diffuseColor = vec4( _bladeCol * uBrightness, opacity );`,
     );
 
-    // ── Translucency ─────────────────────────────────────────────────────────
-    // Additive back-scatter lobe, applied AFTER Lambert's lighting: brightest
-    // when the viewer looks INTO the sun through the blade (V ≈ -L), i.e.
-    // backlit grass. Two modulators:
-    //   _thin — tips are thinner than the base, so they transmit more
-    //   _edge — a blade seen edge-on to the sun transmits more than one facing
-    //           it head-on (which is simply lit, not backlit)
-    // Shadowed blades transmit nothing, so the glow never leaks into shadowed
-    // patches. Lambert has no getShadowMask() (that chunk belongs to
-    // ShadowMaterial), so the shadow factor is sampled straight from the
-    // directional shadow map, behind the same guards Three itself uses.
+    // ── Shadow + translucency ────────────────────────────────────────────────
+    // The soft shadow: average the blade's taps (built in GRASS_SHADOW_VERTEX).
+    // Lambert's own shadow was disabled there, so this is the only shadow applied
+    // — as a multiply on the whole colour, which reads as a uniformly darker
+    // green rather than a hard cut. uShadowStrength is how dark it gets.
+    //
+    // Translucency is the additive back-scatter lobe, applied AFTER: brightest
+    // when the viewer looks INTO the sun through the blade (V ≈ -L), i.e. backlit
+    // grass. Two modulators — tips transmit more (thinner), and a blade edge-on
+    // to the sun transmits more than one facing it. Gated by the same shadow, so
+    // the glow never leaks into shadowed grass.
     shader.fragmentShader = shader.fragmentShader.replace(
       "#include <opaque_fragment>",
       `#include <opaque_fragment>
       {
+        float _shadow = 1.0;
+        #if defined( USE_SHADOWMAP ) && NUM_DIR_LIGHT_SHADOWS > 0
+          DirectionalLightShadow _dls = directionalLightShadows[ 0 ];
+          float _sSum = 0.0;
+          int   _sN   = 0;
+          for ( int _k = 0; _k < GRASS_SHADOW_TAPS; _k++ ) {
+            if ( _k >= uShadowSamples ) break;
+            _sSum += getShadow(
+              directionalShadowMap[ 0 ],
+              _dls.shadowMapSize,
+              _dls.shadowIntensity,
+              _dls.shadowBias,
+              _dls.shadowRadius,
+              vGrassShCoord[ _k ]
+            );
+            _sN++;
+          }
+          _shadow = _sSum / float( max( _sN, 1 ) );
+        #endif
+
+        // Darken the lit blade toward the shadow.
+        gl_FragColor.rgb *= ( 1.0 - uShadowStrength * ( 1.0 - _shadow ) );
+
         vec3  _L    = normalize( uSunDir );
         vec3  _V    = normalize( cameraPosition - vWorldPos );
         float _back = pow( max( dot( _V, -_L ), 0.0 ), uTransPower );
         float _thin = mix( 1.0, vBH, uTransTip );
         float _edge = 1.0 - abs( dot( normalize( vBladeN ), _L ) );
+        float _sh   = mix( 1.0, _shadow, uTransShadow );
 
-        float _shadow = 1.0;
-        #if defined( USE_SHADOWMAP ) && NUM_DIR_LIGHT_SHADOWS > 0
-          DirectionalLightShadow _dls = directionalLightShadows[ 0 ];
-          _shadow = getShadow(
-            directionalShadowMap[ 0 ],
-            _dls.shadowMapSize,
-            _dls.shadowIntensity,
-            _dls.shadowBias,
-            _dls.shadowRadius,
-            vDirectionalShadowCoord[ 0 ]
-          );
-        #endif
-        float _sh = mix( 1.0, _shadow, uTransShadow );
+        vec3 _trans = uTransColor * uSunColor * uTransStrength
+                    * _back * _thin * _edge * _sh;
 
-        gl_FragColor.rgb += uTransColor * uSunColor * uTransStrength
-                          * _back * _thin * _edge * _sh;
+        gl_FragColor.rgb += _trans;
+
+        // ── Breakdown views ──────────────────────────────────────────────────
+        // Each channel paints one intermediate value the shader already computed,
+        // so the debug view IS the real shader — not a parallel scene that can
+        // drift out of sync with it. See utils/controls.ts for the dropdown.
+        if ( uDebugChannel == 1 ) {
+          gl_FragColor.rgb = vec3( vBH );                    // height mask
+        } else if ( uDebugChannel == 2 ) {
+          gl_FragColor.rgb = vec3( vDirt );                  // dirt mask
+        } else if ( uDebugChannel == 3 ) {
+          gl_FragColor.rgb = vec3( vRockInfl );              // rock influence
+        } else if ( uDebugChannel == 4 ) {
+          gl_FragColor.rgb = vec3( _shadow );                // shadow factor
+        } else if ( uDebugChannel == 5 ) {
+          gl_FragColor.rgb = _trans;                         // translucency alone
+        } else if ( uDebugChannel == 6 ) {
+          gl_FragColor.rgb = normalize( vBladeN ) * 0.5 + 0.5; // true blade normal
+        }
       }`,
     );
   };

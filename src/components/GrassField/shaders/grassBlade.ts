@@ -16,6 +16,11 @@
  *  size, so this is a hard cap; uRockCount limits how many are actually read. */
 export const MAX_ROCKS = 24;
 
+/** Shadow taps per blade. The shadow is sampled at this many points up the blade
+ *  and averaged — a fixed-size varying array, so it's a compile-time max;
+ *  uShadowSamples chooses how many are actually read. */
+export const MAX_SHADOW_TAPS = 4;
+
 export const GRASS_BLADE_UNIFORMS = /* glsl */ `
   uniform float uTime;
   uniform float uWindStrength;
@@ -34,10 +39,24 @@ export const GRASS_BLADE_UNIFORMS = /* glsl */ `
   // Dirt mask sampled once at the blade's BASE (not per-vertex) so a blade is
   // uniformly "on dirt" or "on grass" and isn't shaded across the patch edge.
   varying float vDirt;
+  // How hard the nearest rock presses on this blade. Only the debug view reads
+  // it in the fragment stage; the flattening itself happens in the vertex.
+  varying float vRockInfl;
+
+  // ── Breakdown switches ────────────────────────────────────────────────────
+  // uWindFixLocal = 0 reintroduces the fan-out bug on purpose (see below), so it
+  // can be filmed live instead of reconstructed.
+  uniform float uWindFixLocal;
 
   uniform float uDirtCut;        // how much shorter blades get on dirt (1 = gone)
-  uniform float uPerBladeShadow; // 0 = per-fragment shadow, 1 = one sample per blade
-  uniform float uShadowSampleY;  // where along the blade that sample is taken
+  uniform float uShadowSampleY;  // height up the blade the shadow kernel sits at
+  uniform float uShadowRadius;   // world-space radius of the soft-shadow kernel
+
+  // Shadow coordinates, one per tap, built in the vertex from the blade's real
+  // world positions and averaged in the fragment for a soft shadow.
+  #ifdef USE_SHADOWMAP
+    varying vec4 vGrassShCoord[ GRASS_SHADOW_TAPS ];
+  #endif
 
   // ── Rock trampling ────────────────────────────────────────────────────────
   // Each rock is fed in as a world-space sphere: xyz = centre, w = radius.
@@ -76,6 +95,7 @@ export const GRASS_BLADE_VERTEX = /* glsl */ `
       rockAway = dist > 1e-4 ? d / dist : vec2(1.0, 0.0);
     }
   }
+  vRockInfl = rockInfl;
 
   // Grass thins out over dirt instead of stopping at a line, and is pressed down
   // under the rocks. Both are the same operation — a height scale — so they
@@ -114,7 +134,12 @@ export const GRASS_BLADE_VERTEX = /* glsl */ `
     normalize(vec3(instanceMatrix[1])),
     normalize(vec3(instanceMatrix[2]))
   );
-  vec3 windLocal = transpose(instRot) * vec3(uWindDir.x, 0.0, uWindDir.y);
+  // uWindFixLocal = 0 applies the WORLD wind vector as if it were local — every
+  // blade then leans along its own random rotation and the field fans out. Kept
+  // as a switch because it's the clearest way to show why the transpose is here.
+  vec3 windWrong = vec3(uWindDir.x, 0.0, uWindDir.y);
+  vec3 windRight = transpose(instRot) * windWrong;
+  vec3 windLocal = mix(windWrong, windRight, uWindFixLocal);
   transformed += windLocal * (swing + lean);
 
   // Splay the tips away from the rock's centre — same world→local trick as the
@@ -131,30 +156,52 @@ export const GRASS_BLADE_VERTEX = /* glsl */ `
 `;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Per-blade shadow sampling.
+// Soft per-blade shadow — replaces <worldpos_vertex>.
 //
-// Three builds vDirectionalShadowCoord in <shadowmap_vertex> from the
-// `worldPosition` that <worldpos_vertex> just computed — i.e. per-vertex, and
-// then interpolated per-fragment. For grass that is wrong: a blade straddling a
-// shadow edge comes out half lit / half dark, and the boundary cuts a hard
-// straight line across the blades.
+// Three builds vDirectionalShadowCoord from `worldPosition` per-vertex and then
+// interpolates it per-fragment: a SINGLE sample per pixel, with an edge only as
+// soft as the shadow map's own PCF. Two ways that goes wrong for grass:
+//   · per fragment            → a blade straddling a shadow edge is half lit /
+//                               half dark, and the boundary cuts a hard straight
+//                               line across the field
+//   · one sample per blade    → each blade is fully in or out, and it POPS: as a
+//     (the old trick)           caster edge sweeps across — trees and their
+//                               wind-swayed leaves cast MOVING shadows — the
+//                               blade's one sample flips and the blade flickers.
 //
-// Overriding `worldPosition` with a point that is CONSTANT for the whole blade
-// makes every vertex of that blade resolve the same shadow coordinate, so a
-// blade is entirely in or out of shadow — and the shadow's edge becomes the
-// jagged silhouette of the grass itself.
+// The real cause of the flicker is a HARD shadow edge crossing the grass. So the
+// fix is a wide penumbra: sample the shadow map at several points spread out in a
+// small horizontal RING around the blade (a manual PCF, wider than the shadow
+// map's own), and average them in the fragment. Stacking taps up the blade
+// wouldn't help — they'd all sit at nearly the same XZ and a sideways-moving edge
+// would still cross them together. Spreading them sideways is what turns a
+// snapping edge into one that fades across a blade's width.
 //
-// Safe to do here because <worldpos_vertex> runs AFTER <project_vertex>:
-// gl_Position is already final and is not affected.
+// So this stage: disables Lambert's own single-sample shadow by shoving the
+// world position it reads outside the shadow frustum (where getShadow returns
+// "fully lit"), and builds the ring of shadow coordinates the fragment averages.
 // ─────────────────────────────────────────────────────────────────────────────
 export const GRASS_SHADOW_VERTEX = /* glsl */ `
-  #include <worldpos_vertex>
-  #ifdef USE_SHADOWMAP
-    vec3 _shBase = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
-    vec3 _shTip  = (modelMatrix * instanceMatrix * vec4(0.0, 1.0, 0.0, 1.0)).xyz;
-    // Sampling at the base shadows a blade as soon as its roots are covered;
-    // sampling higher lets tall blades poke out of a shadow into the light.
-    vec3 _shPos  = mix(_shBase, _shTip, uShadowSampleY);
-    worldPosition = vec4(mix(worldPosition.xyz, _shPos, uPerBladeShadow), 1.0);
+  // Neutralise Lambert's built-in shadow: the coordinate it derives from this
+  // lands outside the frustum → getShadow() → 1.0 (unshadowed).
+  #if defined( USE_ENVMAP ) || defined( DISTANCE ) || defined ( USE_SHADOWMAP )
+    vec4 worldPosition = vec4( 1e6, 1e6, 1e6, 1.0 );
+  #endif
+
+  #if defined( USE_SHADOWMAP ) && NUM_DIR_LIGHT_SHADOWS > 0
+    vec3 _shBase = ( modelMatrix * instanceMatrix * vec4( 0.0, 0.0, 0.0, 1.0 ) ).xyz;
+    vec3 _shTip  = ( modelMatrix * instanceMatrix * vec4( 0.0, 1.0, 0.0, 1.0 ) ).xyz;
+    vec3 _shCenter = mix( _shBase, _shTip, uShadowSampleY );
+
+    // Per-blade rotation of the ring, so the kernels don't line up into a visible
+    // pattern across the field.
+    float _rot = fract( sin( dot( _shBase.xz, vec2( 12.9898, 78.233 ) ) ) * 43758.5453 ) * 6.2831853;
+
+    // Ring of taps in world XZ, radius uShadowRadius: a soft penumbra that width.
+    for ( int _k = 0; _k < GRASS_SHADOW_TAPS; _k++ ) {
+      float _a   = _rot + 6.2831853 * ( float( _k ) + 0.5 ) / float( GRASS_SHADOW_TAPS );
+      vec2  _off = vec2( cos( _a ), sin( _a ) ) * uShadowRadius;
+      vGrassShCoord[ _k ] = directionalShadowMatrix[ 0 ] * vec4( _shCenter + vec3( _off.x, 0.0, _off.y ), 1.0 );
+    }
   #endif
 `;

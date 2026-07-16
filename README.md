@@ -10,7 +10,7 @@ Each one is a **self-contained, reusable component** written in custom GLSL — 
 | Demo | Route | Component | Breakdown |
 |---|---|---|---|
 | 🌊 **Water — Anime Style** | `/water` | [`WaterFloor`](src/components/WaterFloor) — cel-shaded water, ripples, GPU wave simulation | [▶ YouTube](https://youtu.be/v5YoO8gPYPQ) |
-| 🌿 **Stylized Grass** | `/grass` | [`GrassField`](src/components/GrassField) — instanced grass + flowers, dirt blending, trampling | [▶ YouTube](https://youtu.be/v5YoO8gPYPQ) |
+| 🌿 **Stylized Grass** | `/grass` | [`GrassField`](src/components/GrassField) — instanced grass + flowers, dirt blending, trampling | [▶ YouTube](https://www.youtube.com/watch?v=Pqyu7-DDmOM) |
 
 The index page (`/`) lists the demos.
 

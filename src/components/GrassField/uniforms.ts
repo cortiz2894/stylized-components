@@ -42,10 +42,11 @@ export type BladeUniforms = {
   uGradEnd: THREE.IUniform<number>;
   uGradPower: THREE.IUniform<number>;
 
-  // Shadows
-  uShadowStrength: THREE.IUniform<number>;
-  uPerBladeShadow: THREE.IUniform<number>; // 1 = one shadow sample per blade
-  uShadowSampleY: THREE.IUniform<number>; // 0 = at the base, 1 = at the tip
+  // Shadows — soft, multi-tap ring around the blade (see GRASS_SHADOW_VERTEX).
+  uShadowStrength: THREE.IUniform<number>; // how dark a fully-shadowed blade gets
+  uShadowSamples: THREE.IUniform<number>; // taps averaged (1 = crisp, more = softer)
+  uShadowSampleY: THREE.IUniform<number>; // height up the blade the kernel sits at
+  uShadowRadius: THREE.IUniform<number>; // world-space penumbra radius (kills flicker)
 
   // Dirt colormap — shared with the ground material.
   uDirtColor: THREE.IUniform<THREE.Color>;
@@ -73,6 +74,14 @@ export type BladeUniforms = {
   uTransPower: THREE.IUniform<number>; // back-lobe sharpness
   uTransTip: THREE.IUniform<number>; // 0 = whole blade, 1 = tips only
   uTransShadow: THREE.IUniform<number>; // 1 = shadows kill transmission
+
+  // ── Breakdown / teaching switches ─────────────────────────────────────────
+  /** Paints one intermediate value instead of the final color (0 = off). The
+   *  debug view runs inside the real shader, so it can't drift from it. */
+  uDebugChannel: THREE.IUniform<number>;
+  /** 0 reintroduces the fan-out bug: the world-space wind vector is applied as
+   *  if it were blade-local, so every blade leans along its own random rotation. */
+  uWindFixLocal: THREE.IUniform<number>;
 };
 
 /** Ground plane: how it matches the blades, plus its own texture and relief. */
@@ -187,9 +196,10 @@ export function createGrassFieldUniforms(): GrassFieldUniforms {
       uGradEnd: { value: 1.0 },
       uGradPower: { value: 1.6 },
 
-      uShadowStrength: { value: 1.0 },
-      uPerBladeShadow: { value: 1.0 },
-      uShadowSampleY: { value: 0.35 },
+      uShadowStrength: { value: 0.6 },
+      uShadowSamples: { value: 4 },
+      uShadowSampleY: { value: 0.4 },
+      uShadowRadius: { value: 0.3 },
 
       // Coverage 0 keeps the dirt feature dormant until it is dialled in.
       uDirtColor: { value: new THREE.Color("#ac956c") },
@@ -218,6 +228,9 @@ export function createGrassFieldUniforms(): GrassFieldUniforms {
       uTransPower: { value: 3.0 },
       uTransTip: { value: 0.6 },
       uTransShadow: { value: 1.0 },
+
+      uDebugChannel: { value: 0 },
+      uWindFixLocal: { value: 1 },
 
       uTintFloor: { value: 1 },
       uFlatFloorNormal: { value: 1 },
