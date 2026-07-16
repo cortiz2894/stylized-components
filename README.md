@@ -30,7 +30,11 @@ https://github.com/user-attachments/assets/ed8cb44d-d290-493c-b0d2-8f48d6580571
      above). A raw.githubusercontent link will NOT play — GitHub serves .mp4 from
      raw as a download, not as video. -->
 
-[▶ demo-grass.mp4](public/assets/demos/demo-grass.mp4)
+
+
+https://github.com/user-attachments/assets/57236730-37cc-46cb-bc11-69474fad6fd1
+
+
 
 Both clips live in the repo under [`public/assets/demos`](public/assets/demos) — the same footage the landing page plays behind its cards.
 
