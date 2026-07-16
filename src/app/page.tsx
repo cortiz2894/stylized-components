@@ -45,8 +45,7 @@ const DEMOS: Demo[] = [
     index: "02",
     title: "Stylized Grass",
     video: "/assets/demos/demo-grass.mp4",
-    // Both point at the same breakdown for now — one per component eventually.
-    tutorial: "https://youtu.be/v5YoO8gPYPQ",
+    tutorial: "https://www.youtube.com/watch?v=Pqyu7-DDmOM",
     description:
       "A wind-animated field of instanced blades and flowers, with procedural dirt blending, grass trampled flat around rocks, backlit translucency and per-blade shadows.",
     tags: ["Instancing", "Colormap Blend", "Translucency", "Sky Presets"],
