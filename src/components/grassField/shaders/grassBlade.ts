@@ -39,6 +39,12 @@ export const GRASS_BLADE_UNIFORMS = /* glsl */ `
   // Dirt mask sampled once at the blade's BASE (not per-vertex) so a blade is
   // uniformly "on dirt" or "on grass" and isn't shaded across the patch edge.
   varying float vDirt;
+  // Large-scale environmental noise at the blade base [0..1] — indexes a
+  // lush→dry colour gradient in the fragment, giving organic patches (dry spots,
+  // sun-bleached drifts). Sampled at the base like vDirt, so a whole blade is
+  // one value.
+  varying float vPatch;
+  uniform float uPatchScale;
   // How hard the nearest rock presses on this blade. Only the debug view reads
   // it in the fragment stage; the flattening itself happens in the vertex.
   varying float vRockInfl;
@@ -76,6 +82,8 @@ export const GRASS_BLADE_VERTEX = /* glsl */ `
   // Blade base in world space = the instance matrix's translation column.
   vec2 baseXZ = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xz;
   vDirt = groundDirt(baseXZ);
+  // Low-frequency noise, sampled once at the base — the environmental patch value.
+  vPatch = _gmFbm(baseXZ * uPatchScale);
 
   // ── Rock trampling ────────────────────────────────────────────────────────
   // Find the rock that presses on this blade hardest. Blades are small relative

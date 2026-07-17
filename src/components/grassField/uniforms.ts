@@ -42,6 +42,14 @@ export type BladeUniforms = {
   uGradEnd: THREE.IUniform<number>;
   uGradPower: THREE.IUniform<number>;
 
+  // Environmental patches — a low-frequency noise per blade indexes a lush→dry
+  // gradient, for organic colour drift across the field. Strength 0 = off.
+  uPatchLush: THREE.IUniform<THREE.Color>;
+  uPatchDry: THREE.IUniform<THREE.Color>;
+  uPatchStrength: THREE.IUniform<number>;
+  uPatchScale: THREE.IUniform<number>; // bigger = smaller patches
+  uPatchBias: THREE.IUniform<number>; // >1 = less of the field goes dry
+
   // Shadows — soft, multi-tap ring around the blade (see GRASS_SHADOW_VERTEX).
   uShadowStrength: THREE.IUniform<number>; // how dark a fully-shadowed blade gets
   uShadowSamples: THREE.IUniform<number>; // taps averaged (1 = crisp, more = softer)
@@ -195,6 +203,14 @@ export function createGrassFieldUniforms(): GrassFieldUniforms {
       uGradStart: { value: 0.15 },
       uGradEnd: { value: 1.0 },
       uGradPower: { value: 1.6 },
+
+      // Lush defaults close to the grass colour, so low-noise areas barely shift
+      // and only the dry patches stand out.
+      uPatchLush: { value: new THREE.Color("#6f9a2a") },
+      uPatchDry: { value: new THREE.Color("#b8a94e") },
+      uPatchStrength: { value: 0.35 },
+      uPatchScale: { value: 0.15 },
+      uPatchBias: { value: 1.6 },
 
       uShadowStrength: { value: 0.6 },
       uShadowSamples: { value: 4 },

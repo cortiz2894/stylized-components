@@ -83,7 +83,7 @@ export default function GrassCanvas() {
           shadows={{ type: PCFSoftShadowMap }}
           camera={{ position: [8, 6, 8], fov: 50, near: 0.1, far: CAMERA_FAR }}
           gl={{ antialias: true, alpha: false }}
-          dpr={1.2}
+          dpr={1}
           style={{ background: "#0d1a10" }}
         >
           <GrassSceneContent
@@ -114,28 +114,28 @@ export default function GrassCanvas() {
         />
       )}
       {!immersive && (
-      <OverlaySwitcher
-        rows={[
-          {
-            label: "Season",
-            active: grassPreset,
-            onSelect: setGrassPreset,
-            options: Object.entries(GRASS_PRESETS).map(([key, p]) => ({
-              key,
-              label: p.label,
-            })),
-          },
-          {
-            label: "Sky",
-            active: skyMode,
-            onSelect: (key) => setSkyMode(key as SkyMode),
-            options: SKY_CHOICES.map((key) => ({
-              key,
-              label: SKY_PRESETS[key].label,
-            })),
-          },
-        ]}
-      />
+        <OverlaySwitcher
+          rows={[
+            {
+              label: "Season",
+              active: grassPreset,
+              onSelect: setGrassPreset,
+              options: Object.entries(GRASS_PRESETS).map(([key, p]) => ({
+                key,
+                label: p.label,
+              })),
+            },
+            {
+              label: "Sky",
+              active: skyMode,
+              onSelect: (key) => setSkyMode(key as SkyMode),
+              options: SKY_CHOICES.map((key) => ({
+                key,
+                label: SKY_PRESETS[key].label,
+              })),
+            },
+          ]}
+        />
       )}
       <OverlayButtons
         hideLeva={hideLeva}

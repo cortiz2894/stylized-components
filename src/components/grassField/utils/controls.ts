@@ -167,6 +167,41 @@ export function useGrassControls() {
         { collapsed: true },
       ),
 
+      // Environmental colour patches. A slow noise sampled at each blade's world
+      // position indexes a lush→dry gradient, so the field drifts between colours
+      // in organic blotches — dry spots, sun-bleached stretches. Strength 0 = off.
+      Patches: folder(
+        {
+          grPatchStrength: {
+            value: 0.73,
+            min: 0,
+            max: 1,
+            step: 0.01,
+            label: "Strength (0 = off)",
+          },
+          // On: the patch gradient reuses the blade's Color Bottom → Top, so it
+          // tracks every preset for free. Off: use the two custom colors below.
+          grPatchLinkColors: { value: true, label: "Match Grass Colors" },
+          grPatchDry: { value: "#b8a94e", label: "Dry Color (if unlinked)" },
+          grPatchLush: { value: "#6f9a2a", label: "Lush Color (if unlinked)" },
+          grPatchScale: {
+            value: 0.9,
+            min: 0.01,
+            max: 1,
+            step: 0.01,
+            label: "Scale (bigger = smaller patches)",
+          },
+          grPatchBias: {
+            value: 1.6,
+            min: 0.2,
+            max: 5,
+            step: 0.1,
+            label: "Dry Bias (>1 = less dry)",
+          },
+        },
+        { collapsed: false },
+      ),
+
       // Procedural dirt patches painted on the ground. The blades sample the same
       // mask, so over dirt they shrink and take the earth color — the grass thins
       // out into the patch instead of ending at a line.

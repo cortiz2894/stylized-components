@@ -147,8 +147,14 @@ export function scatterBlades(
       ? 1
       : Math.min(Math.max(1, Math.round(opts.density * s.totalArea)), opts.maxCount);
 
+  // OPAQUE, not transparent: the blade shader always writes alpha = 1 (no alpha
+  // texture, no discard), so there's nothing to blend. Marking it transparent
+  // would force the blending path AND drop early-z, so every one of the ~53k
+  // overlapping blades gets fully shaded even where it's hidden behind others —
+  // that's the overdraw that makes a low camera crawl. Opaque lets the GPU
+  // depth-reject the hidden fragments before shading them.
   const mat = makeBladeMaterial(opts.uniforms);
-  mat.transparent = true;
+  mat.transparent = false;
   mat.depthWrite = true;
 
   const im = new THREE.InstancedMesh(

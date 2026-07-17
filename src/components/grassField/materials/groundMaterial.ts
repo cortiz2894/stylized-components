@@ -89,6 +89,11 @@ export function makeGroundMaterial(
       uniform vec3  uGrassBottom;
       uniform float uBrightness;
       uniform float uTintFloor;
+      uniform vec3  uPatchLush;
+      uniform vec3  uPatchDry;
+      uniform float uPatchStrength;
+      uniform float uPatchScale;
+      uniform float uPatchBias;
       uniform vec3  uGndVarColor;
       uniform float uGndVarScale;
       uniform float uGndVarStrength;
@@ -156,7 +161,15 @@ export function makeGroundMaterial(
       "vec4 diffuseColor = vec4( diffuse, opacity );",
       `float _dirt = groundDirt( vGndXZ );
 
-      vec3 _gndCol = mix( diffuse, uGrassBottom * uBrightness, uTintFloor );
+      // Environmental patches — the SAME lush→dry gradient the blades apply, at
+      // the same world position, so the ground under a dry patch drifts to the
+      // same colour as the blade bases growing out of it. Without this the tinted
+      // ground stays plain green while the blades go dry, and the bases stop
+      // melting into the ground.
+      float _pt = pow( clamp( _gmFbm( vGndXZ * uPatchScale ), 0.0, 1.0 ), uPatchBias );
+      vec3 _grassTint = mix( uGrassBottom, mix( uPatchLush, uPatchDry, _pt ), uPatchStrength );
+
+      vec3 _gndCol = mix( diffuse, _grassTint * uBrightness, uTintFloor );
       _gndCol = mix( _gndCol, uDirtColor * uBrightness, _dirt );
 
       // Two scales of tonal break-up toward the same variation color: a slow one

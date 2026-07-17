@@ -378,6 +378,19 @@ export default function GrassField({
     s.uGradPower.value = grass.grGradPower;
     s.uBrightness.value = grass.grBrightness;
 
+    // Linked → the patch gradient IS the blade's bottom→top colors, so it matches
+    // every preset without the presets having to set patch colors themselves.
+    if (grass.grPatchLinkColors) {
+      s.uPatchLush.value.set(grass.grColorBottom);
+      s.uPatchDry.value.set(grass.grColorTop);
+    } else {
+      s.uPatchLush.value.set(grass.grPatchLush);
+      s.uPatchDry.value.set(grass.grPatchDry);
+    }
+    s.uPatchStrength.value = grass.grPatchStrength;
+    s.uPatchScale.value = grass.grPatchScale;
+    s.uPatchBias.value = grass.grPatchBias;
+
     s.uShadowStrength.value = grass.grShadowStrength;
     s.uShadowSamples.value = grass.grShadowSamples;
     s.uShadowSampleY.value = grass.grShadowSampleY;

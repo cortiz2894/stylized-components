@@ -128,6 +128,7 @@ export function makeBladeMaterial(u: BladeUniforms): THREE.MeshLambertMaterial {
       varying vec3  vWorldPos;
       varying vec3  vBladeN;
       varying float vDirt;
+      varying float vPatch;
       ${DEBUG_FRAGMENT_UNIFORMS}
       uniform vec3  uGrassBottom;
       uniform vec3  uGrassTop;
@@ -137,6 +138,10 @@ export function makeBladeMaterial(u: BladeUniforms): THREE.MeshLambertMaterial {
       uniform float uGradPower;
       uniform vec3  uDirtColor;
       uniform float uDirtBlend;
+      uniform vec3  uPatchLush;
+      uniform vec3  uPatchDry;
+      uniform float uPatchStrength;
+      uniform float uPatchBias;
       uniform int   uShadowSamples;
       uniform float uShadowStrength;
       uniform vec3  uSunDir;
@@ -150,6 +155,19 @@ export function makeBladeMaterial(u: BladeUniforms): THREE.MeshLambertMaterial {
         varying vec4 vGrassShCoord[ GRASS_SHADOW_TAPS ];
       #endif\n` + shader.fragmentShader;
 
+    // Force the shading normal to +Y on BOTH faces. The blade is DoubleSide, and
+    // Three flips the normal on back faces — with the sun overhead that lights
+    // them from below, so back faces read as dark blade-shaped patches. (It only
+    // showed once the blades became opaque: the transparent pass had hidden it.)
+    // We already force +Y in the vertex; this re-forces it here, after Three's
+    // face-direction flip, so both sides shade identically and the field stays
+    // evenly lit. Translucency still uses the real facing (vBladeN), untouched.
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "#include <normal_fragment_begin>",
+      `#include <normal_fragment_begin>
+      normal = normalize( mat3( viewMatrix ) * vec3( 0.0, 1.0, 0.0 ) );`,
+    );
+
     // Lambert applies (ambient + directional × NdotL × shadow) on top of
     // diffuseColor, so overriding it here is all the color control we need.
     shader.fragmentShader = shader.fragmentShader.replace(
@@ -157,6 +175,14 @@ export function makeBladeMaterial(u: BladeUniforms): THREE.MeshLambertMaterial {
       `float _gT = clamp( ( vBH - uGradStart ) / max( uGradEnd - uGradStart, 0.001 ), 0.0, 1.0 );
       _gT = pow( _gT, uGradPower );
       vec3 _bladeCol = mix( uGrassBottom, uGrassTop, _gT );
+
+      // Environmental patches: a large, slow noise (vPatch, constant per blade)
+      // indexes a lush→dry gradient, so the field drifts between colours in
+      // organic blotches — dry spots, sun-bleached stretches. uPatchBias skews how
+      // much of the field goes dry; uPatchStrength is how far from the base colour
+      // it can drift. Applied before dirt, so bare earth still wins over it.
+      float _pt = pow( clamp( vPatch, 0.0, 1.0 ), uPatchBias );
+      _bladeCol = mix( _bladeCol, mix( uPatchLush, uPatchDry, _pt ), uPatchStrength );
 
       // On dirt, the blade takes the ground color over its WHOLE height — no tip
       // fade. Tinting only the base left the tips reading green against the
