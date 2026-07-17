@@ -2,6 +2,8 @@
   "name": "stylized-components",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
+  "author": "Christian Ortiz (Cortiz) <cortiz2894@gmail.com> (https://cortiz.dev)",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

@@ -213,6 +213,14 @@ Each scene exposes its full parameter set through Leva (toggle the panel with th
 
 ---
 
+## 📄 License
+
+Released under the [MIT License](LICENSE) — free to use, modify and ship, in personal or commercial projects.
+
+The only ask: **keep the attribution**. If you use these components (or build on them), a credit to **Christian Ortiz (Cortiz)** with a link back to this repo is required by the license and genuinely appreciated. A shout-out on socials is always welcome too. 🌿
+
+---
+
 ## 👨‍💻 Author
 
 **Christian Ortiz** — Creative Developer
