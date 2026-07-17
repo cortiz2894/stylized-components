@@ -83,7 +83,7 @@ export default function GrassCanvas() {
           shadows={{ type: PCFSoftShadowMap }}
           camera={{ position: [8, 6, 8], fov: 50, near: 0.1, far: CAMERA_FAR }}
           gl={{ antialias: true, alpha: false }}
-          dpr={1}
+          dpr={1.2}
           style={{ background: "#0d1a10" }}
         >
           <GrassSceneContent
