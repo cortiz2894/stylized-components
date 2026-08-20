@@ -65,6 +65,30 @@ const DEMOS: Demo[] = [
       </svg>
     ),
   },
+  {
+    href: "/painterly",
+    index: "03",
+    title: "Painterly Material",
+    video: "/assets/demos/demo-painterly.mov",
+    tutorial: "https://youtu.be/CmIfhwSyswk?si=7-owRGlw8Lr7aOUq",
+    description:
+      "An oil-paint filter in screen space: an anisotropic Kuwahara that smooths every pixel with the flattest patch around it and refuses to smooth across contours, with strokes aligned to the image's own flow by a structure tensor.",
+    tags: ["Kuwahara", "Structure Tensor", "Post-processing", "Sky Presets"],
+    glyph: (
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 18 18"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.2"
+      >
+        <path d="M9 2c3.9 0 7 2.7 7 6 0 2.2-1.8 3.5-3.6 3.5h-1.3c-1 0-1.6.9-1.1 1.7.4.7.1 1.8-1 1.8-3.9 0-7-2.7-7-6.5S5.1 2 9 2Z" />
+        <circle cx="6" cy="7" r="1" fill="currentColor" stroke="none" />
+        <circle cx="10" cy="5.5" r="1" fill="currentColor" stroke="none" />
+      </svg>
+    ),
+  },
 ];
 
 export default function Home() {
