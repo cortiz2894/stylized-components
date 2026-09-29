@@ -71,6 +71,21 @@ export interface SkyPreset {
   horizonLine?: number;
   horizonSpread?: number;
 
+  /**
+   * How far the dome's centre is lifted above the camera, in world units.
+   *
+   * It belongs to the preset because it is part of the COMPOSITION, not a
+   * global constant: the dome is a sphere the camera sits inside, so raising
+   * its centre pushes the horizon line down the screen and drops more sky into
+   * frame, while lowering it does the opposite. A scene framed on a castle
+   * against open sky (+190) and one standing at street level between towers
+   * (-75) want opposite answers, and before this the number was a single Leva
+   * default that had to be hand-edited per scene.
+   *
+   * Undefined falls back to the baseline the Leva panel resets to (-85).
+   */
+  domeOffsetY?: number;
+
   // ── Moon / Sun disc ────────────────────────────────────────────────────────
   moonElev?: number; // degrees
   moonAzim?: number; // degrees
@@ -84,6 +99,11 @@ export interface SkyPreset {
   moonPhaseSoftness?: number;
   moonPhaseAngle?: number; // degrees
   moonEmission?: number;
+  /** How much of the disc's LIGHT — its corona and its emission, as opposed to
+   *  its surface — survives full cloud cover. 0 = a cloud blocks it outright
+   *  (which leaves a flat, glow-less disc stencilled through thin cloud);
+   *  higher values let cloud crossing the sun light up instead. */
+  moonCloudBleed?: number;
   moonSpotColor?: string;
   moonSpotStrength?: number;
 
@@ -105,11 +125,37 @@ export interface SkyPreset {
   cloudRim?: string;
   cloudEdgeWidth?: number;
   cloudRimStrength?: number;
+  /** Colour the cloud takes where sunlight survives the light march. */
+  cloudLit?: string;
+  /** 0 = no directional volume light (rim-only, the old behaviour). */
+  cloudLitStrength?: number;
+  /** Samples marched toward the sun, 0–6. Cost scales linearly. */
+  cloudLightSteps?: number;
+  /** March length in cloud-noise units — roughly "how thick a puff is". */
+  cloudLightDist?: number;
+  /** How fast the mass between fragment and sun kills the light. */
+  cloudAbsorption?: number;
+  /** FBM octaves used by the march samples (coarser = smoother + cheaper). */
+  cloudLightOct?: number;
+  /** 0 = smooth shading, N = quantised into N flat paint steps. */
+  cloudBands?: number;
+  /** 1 = clouds more than 90° from the sun flatten to lit (they are front-lit
+   *  there, and the marched gradient would point the wrong way). 0 keeps the
+   *  raw march everywhere. */
+  cloudFrontLit?: number;
   cloudDarkenFar?: number;
   cloudStretch?: number;
   cloudMorphSpeed?: number;
   cloudOpacity?: number;
   cloudFloor?: number;
+  /** Height above `cloudFloor` over which cloud DENSITY ramps in. Both floor
+   *  and ceiling work this way: the cloud stops existing rather than fading
+   *  out, so the band has no soft grey hem. */
+  cloudFloorFade?: number;
+  /** Shape of that ramp, and therefore the shape of the cloud BASES.
+   *  < 1 cuts them flat (cumulus sitting on one level), > 1 trails them off
+   *  into wisps. */
+  cloudFloorPow?: number;
   cloudCeiling?: number;
   moonLightRadius?: number;
   moonLightSoftness?: number;
@@ -148,6 +194,8 @@ export interface BlendState {
 export const SKY_PRESETS: Record<SkyMode, SkyPreset> = {
   sunrise: {
     label: "Sunrise",
+    // The baseline every global preset shares — see the field's note.
+    domeOffsetY: -85,
     ambient: { color: "#fff5b7", intensity: 2 },
     filter: { color: "hsl(220, 70%, 55%)", opacity: 0 },
     light: {
@@ -226,6 +274,8 @@ export const SKY_PRESETS: Record<SkyMode, SkyPreset> = {
   },
   day: {
     label: "Day",
+    // The baseline every global preset shares — see the field's note.
+    domeOffsetY: -85,
     ambient: { color: "#fff5b7", intensity: 2 },
     filter: { color: "hsl(220, 70%, 55%)", opacity: 0 },
     light: {
@@ -310,6 +360,8 @@ export const SKY_PRESETS: Record<SkyMode, SkyPreset> = {
 
   sunset: {
     label: "Sunset",
+    // The baseline every global preset shares — see the field's note.
+    domeOffsetY: -85,
     ambient: { color: "#e8924a", intensity: 0.65 },
     filter: { color: "hsl(22, 80%, 58%)", opacity: 0.2 },
     light: {
@@ -395,6 +447,8 @@ export const SKY_PRESETS: Record<SkyMode, SkyPreset> = {
   },
   night: {
     label: "Night",
+    // The baseline every global preset shares — see the field's note.
+    domeOffsetY: -85,
     ambient: { color: "#314c9d", intensity: 2.25 },
     filter: { color: "hsl(220, 70%, 55%)", opacity: 0.18 },
     light: {

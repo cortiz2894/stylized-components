@@ -89,6 +89,31 @@ const DEMOS: Demo[] = [
       </svg>
     ),
   },
+  {
+    href: "/god-rays",
+    index: "04",
+    title: "God Rays",
+    video: "/assets/demos/demo-god-rays.mp4",
+    tutorial: "https://youtu.be/sHiyKH02-E4",
+    description:
+      "An anime classroom at sunset: light cut into shafts by the window frames, marched through the room in world space, a screen-space fan off the sun through the glass, and dust that only shows where the beams catch it.",
+    tags: ["Volumetric Light", "Raymarching", "Post-processing", "Dust"],
+    glyph: (
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 18 18"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.2"
+      >
+        <circle cx="4" cy="4" r="2" />
+        <path d="M6 6l9 7" />
+        <path d="M5 7.5l7 8" />
+        <path d="M7.5 5l8.5 4" />
+      </svg>
+    ),
+  },
 ];
 
 export default function Home() {
