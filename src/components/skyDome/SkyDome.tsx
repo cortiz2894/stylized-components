@@ -66,6 +66,9 @@ const SKY_FRAG = /* glsl */ `
   uniform float uMoonPhaseSoftness;  // 0.05 = sharp terminator, 1.5 = very gradual
   uniform float uMoonPhaseAngle;     // terminator rotation in radians
   uniform float uMoonEmission;       // additive brightness so the disc isn't flat
+  // How much of the disc's LIGHT (corona + emission) survives full cloud cover.
+  // 0 = a cloud blocks it completely; 1 = cloud does not dim it at all.
+  uniform float uMoonCloudBleed;
   // Surface texture (FBM spots / maria)
   uniform vec3  uMoonSpotColor;
   uniform float uMoonSpotScale;
@@ -116,11 +119,22 @@ const SKY_FRAG = /* glsl */ `
   uniform vec3  uCloudRim;          // moon-facing glow at silhouette
   uniform float uCloudEdgeWidth;    // how quickly interior fades to edge (0..1)
   uniform float uCloudRimStrength;  // additive emission intensity
+  // Directional volume lighting (see the march in main())
+  uniform vec3  uCloudLit;          // colour where sunlight survives the march
+  uniform float uCloudLitStrength;  // 0 = off, 1 = lit colour fully replaces base
+  uniform int   uCloudLightSteps;   // march samples toward the sun (0 = off, max 6)
+  uniform float uCloudLightDist;    // march length, in cloud-noise units
+  uniform float uCloudAbsorption;   // how fast accumulated density kills the light
+  uniform int   uCloudLightOct;     // FBM octaves used by the march samples
+  uniform float uCloudBands;        // 0 = smooth gradient, N = N flat paint steps
+  uniform float uCloudFrontLit;     // 1 = clouds behind the viewer go flat-lit
   uniform float uMoonLightRadius;   // angular radius (radians) of moon's light cone
   uniform float uMoonLightSoftness; // 0 = hard cutoff, 1 = very soft (inner edge → 0)
   uniform float uCloudDarkenFar;    // 0 = fully dark far from moon, 1 = no darkening
   uniform float uCloudStretch;      // horizontal stretch of cloud UV (< 1 = wider, > 1 = taller)
   uniform float uCloudFloor;
+  uniform float uCloudFloorFade;    // height above the floor density ramps in over
+  uniform float uCloudFloorPow;     // <1 = flat cut bases, >1 = wispy trailing bases
   uniform float uCloudCeiling;
   uniform float uCloudOpacity;
   // FBM shape controls
@@ -179,10 +193,14 @@ const SKY_FRAG = /* glsl */ `
   }
 
   // Variable-octave 3D FBM — each octave morphs independently via time offsets.
-  float fbmCloud(vec3 p) {
+  // The octave count is a parameter rather than read straight from the uniform
+  // so the light march can sample the same field at a coarser level: it only
+  // needs where the MASS is, and the fine octaves would just inject noise into
+  // what should be a smooth shading gradient (while costing the most).
+  float fbmCloudOct(vec3 p, int oct) {
     float v = 0.0, a = 0.5, norm = 0.0;
     for (int i = 0; i < 8; i++) {
-      if (i >= uCloudOctaves) break;
+      if (i >= oct) break;
       float fi     = float(i) + 1.0;
       float morphT = uTime * uCloudMorphSpeed * fi;
       v    += a * valueNoise3D(p + vec3(morphT, morphT * 0.63, morphT * 0.37));
@@ -192,6 +210,8 @@ const SKY_FRAG = /* glsl */ `
     }
     return v / max(norm, 0.001);
   }
+
+  float fbmCloud(vec3 p) { return fbmCloudOct(p, uCloudOctaves); }
 
   // Static FBM for moon surface detail — no time dependence so the surface
   // stays fixed regardless of how long the game runs.
@@ -339,10 +359,13 @@ const SKY_FRAG = /* glsl */ `
     float t     = smoothstep(uHorizonLine - uHorizonSpread, uHorizonLine + uHorizonSpread, dir.y);
     vec3  color = mix(uSkyLow, uSkyHigh, t);
 
-    // ── 2. Moon glow (corona behind clouds & stars) — uses the UNWARPED dir
+    // ── 2. Moon glow (corona) — uses the UNWARPED dir
+    // Computed here but NOT added here. Everything the disc EMITS — this corona
+    // and the disc's own emission — is applied after the clouds, because a
+    // cloud in front of the sun does not delete its light, it scatters it. See
+    // the emissive pass at the end of main().
     float cosA = dot(dirM, normalize(uMoonDir));
     float glow  = pow(max(cosA, 0.0), uMoonGlowFalloff) * uMoonGlowIntensity;
-    color += uMoonGlowColor * glow;
 
     // ── 3. Stars ──────────────────────────────────────────────────────────
     float star = starField(dir);
@@ -420,18 +443,25 @@ const SKY_FRAG = /* glsl */ `
       moonTexColor = mix(uMoonColor, uMoonSpotColor, spotPatch * uMoonSpotStrength);
     }
 
-    color = mix(color, moonTexColor, moonMask * litFactor);
-    // Additive emission: the lit surface radiates light beyond a flat mix,
-    // giving the disc a self-luminous quality without needing post-bloom.
-    color += moonTexColor * (moonMask * litFactor) * uMoonEmission;
+    // The disc's SURFACE. This one is a solid thing in the sky, so a cloud in
+    // front of it does occlude it — the cloud mix below is what does that.
+    float moonDisc = moonMask * litFactor;
+    color = mix(color, moonTexColor, moonDisc);
+    // Its EMISSION is not applied here. Held for the pass after the clouds.
 
     // ── 5. FBM clouds ─────────────────────────────────────────────────────
-    // Ceiling is handled as a DENSITY falloff (fewer/smaller clouds toward the
-    // top) instead of an opacity fade — only a tiny guard band remains here.
-    float cloudBand = smoothstep(uCloudFloor, uCloudFloor + 0.1, dir.y) *
-                      smoothstep(uCloudCeiling, uCloudCeiling - 0.05, dir.y);
-
-    if (cloudBand > 0.0) {
+    // BOTH edges of the band are DENSITY falloffs — the cloud stops existing
+    // rather than turning see-through. The floor used to be an opacity fade
+    // (a '* cloudBand' multiply), which washed the bottom of every cloud out into the sky
+    // and gave the whole band a soft grey hem; there is nothing left of that.
+    //
+    // The test below is only a cheap early-out. The density term already
+    // reaches zero at both ends on its own, so there is no edge here to pop.
+    //
+    // Hoisted out of the block: the emissive pass at the end needs to know how
+    // much cloud ended up in front of this fragment.
+    float cloudCover = 0.0;
+    if (dir.y > uCloudFloor && dir.y < uCloudCeiling) {
       // Spherical cloud sampling: dir IS the unit-sphere surface point.
       // No planar projection → no UV blowup at the horizon, clouds wrap
       // the inside of the dome with consistent density and curvature.
@@ -458,14 +488,36 @@ const SKY_FRAG = /* glsl */ `
         uCloudCeiling,
         dir.y
       );
-      float threshold = 1.0 - uCloudDensity * (1.0 - ceilT);
 
-      // Cloud opacity
+      // ── Floor: the same mechanism, and the FLAT BASE ─────────────────
+      // Density ramps in over uCloudFloorFade above the floor, and
+      // uCloudFloorPow shapes that ramp — which is what decides the shape of
+      // the cloud BOTTOMS:
+      //   < 1  density arrives almost at once, so any mass that would hang
+      //        below gets cut off at one height: flat-based cumulus, the
+      //        reference's look.
+      //   = 1  linear.
+      //   > 1  density creeps in, so bottoms trail off into wisps.
+      // A narrow fade band does the same job more bluntly; the two together
+      // are "where the bases sit" and "how hard they are cut".
+      float floorT = smoothstep(uCloudFloor, uCloudFloor + max(uCloudFloorFade, 1e-4), dir.y);
+      floorT = pow(floorT, max(uCloudFloorPow, 0.01));
+
+      float dens = floorT * (1.0 - ceilT);
+
+      // Note the top of the mix is 1.0 + sharpness, not 1.0. 'raw' is clamped
+      // to 1, so a threshold of exactly 1 still lets the smoothstep return 0.5
+      // at the peaks — which is a scatter of half-lit specks along the floor
+      // line, right where this is all meant to be clean. Pushing the empty end
+      // one sharpness past the maximum makes "no density" mean no cloud.
+      float threshold = mix(1.0 + uCloudSharpness, 1.0 - uCloudDensity, dens);
+
+      // Cloud opacity. No band multiply — the density above IS the falloff.
       float cloud = smoothstep(
         threshold - uCloudSharpness,
         threshold + uCloudSharpness,
         raw
-      ) * cloudBand;
+      );
 
       // ── Volume / edge model ──────────────────────────────────────────
       // depth: 0.0 = cloud silhouette edge, 1.0 = deep interior
@@ -485,11 +537,99 @@ const SKY_FRAG = /* glsl */ `
       // moonLight (0..1) drives a brightness multiplier.
       float brightness = mix(uCloudDarkenFar, 1.0, moonLight);
 
-      // Base cloud color: core (interior) → edge (boundary), scaled by brightness.
-      // No rim baked in — rim is handled separately as a silhouette halo below.
-      vec3 cColor = mix(uCloudCore, uCloudEdge, edgeFactor) * brightness;
+      // ── Directional volume light ─────────────────────────────────────
+      // moonLight above is an ANGULAR distance to the disc: it says how close
+      // to the sun a fragment sits, which only ever produces a halo around it.
+      // What gives a cloud volume is the opposite question — how much of the
+      // cloud's own mass sits BETWEEN this fragment and the sun.
+      //
+      // The field is 3-D noise sampled on the dome surface, so "toward the sun"
+      // at a fragment is the sun direction projected onto the dome's tangent
+      // plane there. Marching the density along it and accumulating what it
+      // hits gives how much light survives: short path out on the flank facing
+      // the sun (bright), long path through the body on the far flank (base
+      // tone). With the sun at the horizon, "toward the sun" points DOWN, so
+      // every puff lights along its underside and shades into its own top —
+      // the read in the reference.
+      float lit = 1.0;
+      if (uCloudLitStrength > 0.001 && uCloudLightSteps > 0) {
+        vec3  sunD   = normalize(uMoonDir);
+        // Own dot rather than cosA above: that one is against the UNWARPED dir
+        // (the disc ignores side distortion), and the march has to agree with
+        // the field it is walking, which uses the warped dir.
+        float sunDot = dot(dir, sunD);
+        vec3  tanL   = sunD - dir * sunDot;
+        float tanLen = length(tanL);
 
-      color = mix(color, cColor, cloud * uCloudOpacity);
+        // tanL is the SHORTEST path along the dome to the sun's sky position,
+        // and past 90° that path goes over the zenith: a cloud on the far side
+        // of the sky would light from ABOVE, gradient upside down.
+        //
+        // That range is a different lighting case, not a broken one. sunDot > 0
+        // means we are looking INTO the light — the cloud sits between us and
+        // the sun, back-lit, and the march is exactly what carries its shape.
+        // sunDot < 0 means the sun is BEHIND the viewer: the face turned toward
+        // us is the lit one, so the cloud reads flat and bright, with no
+        // gradient to march in the first place. Fading the marched term out
+        // across that boundary keeps the light reading as coming from the disc
+        // everywhere, instead of flipping direction behind the camera.
+        float frontLit = smoothstep(0.0, -0.6, sunDot) * uCloudFrontLit;
+
+        if (tanLen > 0.02) {
+          tanL /= tanLen;
+          // Into the same space the field is sampled in, so the march walks the
+          // noise along the axis the clouds are actually stretched on.
+          vec3 stepDir = normalize(vec3(tanL.x * uCloudStretch, tanL.y, tanL.z));
+
+          // Note the march starts from the POST-warp cloudP and steps straight,
+          // i.e. it walks warped space as if it were flat. Re-warping every
+          // sample would cost two more FBM evaluations each; the warp is
+          // low-frequency compared to the march length, so over one step it is
+          // close to a translation and the error stays under the shading
+          // gradient. At large uCloudSkew the lit side drifts slightly off the
+          // silhouette — visible only if you go looking for it.
+
+          // Coverage per sample uses a floor on the sharpness: the march reads
+          // the field at fewer octaves, and a knife-edge threshold on a coarser
+          // field would quantise the shading into blotches.
+          float sSoft = max(uCloudSharpness, 0.12);
+          float occ = 0.0, wsum = 0.0;
+          for (int i = 1; i <= 6; i++) {
+            if (i > uCloudLightSteps) break;
+            float t  = float(i) / float(uCloudLightSteps);
+            float rs = fbmCloudOct(cloudP + stepDir * (t * uCloudLightDist), uCloudLightOct);
+            // Near samples shadow more than far ones — a crude Beer falloff
+            // along the ray without needing more taps to resolve it.
+            float w  = 1.0 - 0.5 * t;
+            occ  += smoothstep(threshold - sSoft, threshold + sSoft, rs) * w;
+            wsum += w;
+          }
+          lit = exp(-uCloudAbsorption * (occ / max(wsum, 0.001)));
+        }
+        // Left at 1.0 when the march is skipped, which is right at BOTH poles
+        // where tanLen collapses: on the sun the fragment faces the light
+        // dead-on, and at the anti-solar point frontLit is already forcing the
+        // result to 1.0 anyway — so neither guard introduces a seam.
+        lit = mix(lit, 1.0, frontLit);
+
+        // Painterly banding: collapse the gradient into flat steps, the way a
+        // brush lays one tone next to another instead of blending them.
+        if (uCloudBands > 0.5) {
+          lit = floor(lit * uCloudBands + 0.5) / uCloudBands;
+        }
+      }
+
+      // Base cloud color: core (interior) → edge (boundary), then the lit tone
+      // mixed in where sunlight survived the march. The lit mix is NOT gated by
+      // moonLight: the sun is a directional source, so clouds on the far side
+      // of the sky are lit from the same side — only their overall brightness
+      // falls off (uCloudDarkenFar).
+      // No rim baked in — rim is handled separately as a silhouette halo below.
+      vec3 cColor = mix(uCloudCore, uCloudEdge, edgeFactor);
+      cColor = mix(cColor, uCloudLit, lit * uCloudLitStrength) * brightness;
+
+      cloudCover = cloud * uCloudOpacity;
+      color = mix(color, cColor, cloudCover);
 
       // ── Rim light: silhouette halo (additive, after composite) ───────
       // cloud * (1 - cloud) peaks at 0.25 where opacity = 0.5 — exactly at
@@ -501,6 +641,22 @@ const SKY_FRAG = /* glsl */ `
       float silhouetteMask = 4.0 * cloud * (1.0 - cloud);
       color += uCloudRim * silhouetteMask * moonLight * uCloudRimStrength;
     }
+
+    // ── 6. Emissive pass: the disc's own light, THROUGH the cloud ──────────
+    // This used to sit before the clouds, and that was the bug. The cloud
+    // composite is a mix(), so it REPLACED everything under it: the corona and
+    // the disc's emission were deleted outright, while the disc's flat surface
+    // colour survived wherever the cloud was thin. Hence a crisp, dead circle
+    // with no glow — exactly backwards, since a disc's light is the part that
+    // should carry through a cloud and its surface is the part that should not.
+    //
+    // Running it here instead makes emission behave like light: uMoonCloudBleed
+    // is how much of it survives full cloud cover. At 0 the old all-or-nothing
+    // behaviour is back; above that, cloud crossing the sun lights up and the
+    // disc dissolves into it rather than being stencilled out of it.
+    float moonBleed = mix(1.0, uMoonCloudBleed, cloudCover);
+    color += (uMoonGlowColor * glow + moonTexColor * moonDisc * uMoonEmission)
+           * moonBleed;
 
     gl_FragColor = vec4(color, 1.0);
   }
@@ -520,6 +676,11 @@ interface SkyDomeProps {
   /** If provided, SkyDome writes the current (blended) moon/sun world direction
    *  here every frame so other components (SunGlare) can track it. */
   moonDirRef?: React.MutableRefObject<THREE.Vector3>;
+  /** If provided, SkyDome writes the disc's WORLD POSITION here every frame.
+   *  Prefer this over `moonDirRef` for anything that has to line up with the
+   *  drawn disc on screen: the dome is centred above the camera, so the
+   *  direction alone does not point at where the disc appears. */
+  moonPosRef?: React.MutableRefObject<THREE.Vector3>;
   /** Override moon elevation for this scene (degrees). */
   moonElevOverride?: number;
   /** Override moon azimuth for this scene (degrees). */
@@ -539,6 +700,7 @@ export default function SkyDome({
   blendStateRef,
   targetMode,
   moonDirRef,
+  moonPosRef,
   moonElevOverride,
   moonAzimOverride,
   presetOverrides,
@@ -570,6 +732,7 @@ export default function SkyDome({
       moonPhaseSoftness,
       moonPhaseAngle,
       moonEmission,
+      moonCloudBleed,
       moonSpotColor,
       moonSpotScale,
       moonSpotStrength,
@@ -605,12 +768,22 @@ export default function SkyDome({
       cloudRim,
       cloudEdgeWidth,
       cloudRimStrength,
+      cloudLit,
+      cloudLitStrength,
+      cloudLightSteps,
+      cloudLightDist,
+      cloudAbsorption,
+      cloudLightOct,
+      cloudBands,
+      cloudFrontLit,
       moonLightRadius,
       moonLightSoftness,
       cloudDarkenFar,
       cloudStretch,
       cloudMorphSpeed,
       cloudFloor,
+      cloudFloorFade,
+      cloudFloorPow,
       cloudCeiling,
       cloudOpacity,
       cloudOctaves,
@@ -640,6 +813,11 @@ export default function SkyDome({
         label: "Dome Radius",
       },
       domeOffsetY: {
+        // The BASELINE, not the scene's value: every preset carries its own
+        // `domeOffsetY` and the [skyMode] effect below pushes it in, so this is
+        // only what an (impossible) preset without one would fall back to. It
+        // used to be hand-edited per scene, which meant the painterly demo's
+        // +190 followed you into every other sky.
         value: -85,
         min: -200,
         max: 500,
@@ -660,8 +838,8 @@ export default function SkyDome({
           horizonSpread: {
             value: 0.05,
             min: 0.05,
-            max: 1.0,
-            step: 0.05,
+            max: 0.5,
+            step: 0.01,
             label: "Spread",
           },
         },
@@ -728,6 +906,13 @@ export default function SkyDome({
             max: 2.0,
             step: 0.05,
             label: "Emission",
+          },
+          moonCloudBleed: {
+            value: 0.45,
+            min: 0,
+            max: 1.0,
+            step: 0.01,
+            label: "Light Through Cloud",
           },
           moonSpotColor: { value: "#69c2f6", label: "Spot Color" },
           moonSpotScale: {
@@ -916,7 +1101,7 @@ export default function SkyDome({
         {
           // Shape
           cloudSpeed: {
-            value: 0.005,
+            value: 0.027,
             min: 0,
             max: 0.05,
             step: 0.001,
@@ -950,6 +1135,20 @@ export default function SkyDome({
             step: 0.01,
             label: "Floor Y",
           },
+          cloudFloorFade: {
+            value: 0.06,
+            min: 0.005,
+            max: 0.5,
+            step: 0.005,
+            label: "Floor Fade Height",
+          },
+          cloudFloorPow: {
+            value: 0.25,
+            min: 0.05,
+            max: 4.0,
+            step: 0.05,
+            label: "Floor Curve (<1 = flat bases)",
+          },
           cloudCeiling: {
             value: 0.63,
             min: 0.1,
@@ -965,9 +1164,9 @@ export default function SkyDome({
             label: "Opacity",
           },
           // FBM controls
-          cloudOctaves: { value: 6, min: 1, max: 8, step: 1, label: "Octaves" },
+          cloudOctaves: { value: 7, min: 1, max: 8, step: 1, label: "Octaves" },
           cloudAmplitude: {
-            value: 0.54,
+            value: 0.67,
             min: 0.2,
             max: 0.85,
             step: 0.01,
@@ -1005,6 +1204,57 @@ export default function SkyDome({
             step: 0.1,
             label: "Rim Emission Strength",
           },
+          // ── Directional volume light ───────────────────────────────────
+          cloudLit: { value: "#ffe3c2", label: "Lit Color (sun side)" },
+          cloudLitStrength: {
+            value: 0,
+            min: 0,
+            max: 1.0,
+            step: 0.01,
+            label: "Volume Light (0=off)",
+          },
+          cloudLightSteps: {
+            value: 4,
+            min: 0,
+            max: 6,
+            step: 1,
+            label: "Light Steps",
+          },
+          cloudLightDist: {
+            value: 0.45,
+            min: 0.05,
+            max: 2.0,
+            step: 0.01,
+            label: "Light March Distance",
+          },
+          cloudAbsorption: {
+            value: 2.6,
+            min: 0.2,
+            max: 8.0,
+            step: 0.1,
+            label: "Absorption (shadow depth)",
+          },
+          cloudLightOct: {
+            value: 3,
+            min: 1,
+            max: 6,
+            step: 1,
+            label: "Light Octaves (cost)",
+          },
+          cloudBands: {
+            value: 0,
+            min: 0,
+            max: 8,
+            step: 1,
+            label: "Light Bands (0=smooth)",
+          },
+          cloudFrontLit: {
+            value: 1,
+            min: 0,
+            max: 1,
+            step: 0.05,
+            label: "Front-lit Flatten (past 90°)",
+          },
           moonLightRadius: {
             value: 0.05,
             min: 0.01,
@@ -1034,7 +1284,7 @@ export default function SkyDome({
             label: "Stretch X",
           },
           cloudMorphSpeed: {
-            value: 0.06,
+            value: 0.1,
             min: 0,
             max: 0.3,
             step: 0.005,
@@ -1071,6 +1321,7 @@ export default function SkyDome({
           uMoonPhaseSoftness: { value: 0.2 },
           uMoonPhaseAngle: { value: 0.0 },
           uMoonEmission: { value: 0.35 },
+          uMoonCloudBleed: { value: 0.45 },
           uMoonSpotColor: { value: new THREE.Color("#3a6ab5") },
           uMoonSpotScale: { value: 1.8 },
           uMoonSpotStrength: { value: 0.8 },
@@ -1108,11 +1359,21 @@ export default function SkyDome({
           uCloudRim: { value: new THREE.Color("#8bbfee") },
           uCloudEdgeWidth: { value: 0.35 },
           uCloudRimStrength: { value: 1.7 },
+          uCloudLit: { value: new THREE.Color("#ffe3c2") },
+          uCloudLitStrength: { value: 0 },
+          uCloudLightSteps: { value: 4 },
+          uCloudLightDist: { value: 0.45 },
+          uCloudAbsorption: { value: 2.6 },
+          uCloudLightOct: { value: 3 },
+          uCloudBands: { value: 0 },
+          uCloudFrontLit: { value: 1 },
           uMoonLightRadius: { value: 0.06 },
           uMoonLightSoftness: { value: 0.5 },
           uCloudDarkenFar: { value: 0.25 },
           uCloudStretch: { value: 0.6 },
           uCloudFloor: { value: 0.04 },
+          uCloudFloorFade: { value: 0.06 },
+          uCloudFloorPow: { value: 0.45 },
           uCloudCeiling: { value: 1.0 },
           uCloudOpacity: { value: 0.9 },
           uCloudOctaves: { value: 6 },
@@ -1143,6 +1404,10 @@ export default function SkyDome({
       skyHigh: "#00448f",
       horizonLine: 0.52,
       horizonSpread: 0.05,
+      // Where the horizon sits on screen. In the reset block like everything
+      // else, so a preset that does not state one cannot inherit the previous
+      // scene's framing.
+      domeOffsetY: -85,
       // ── Moon defaults ─────────────────────────────────────────────────────
       moonElev: 0,
       moonAzim: 183,
@@ -1156,6 +1421,7 @@ export default function SkyDome({
       moonPhaseSoftness: 0.45,
       moonPhaseAngle: 150,
       moonEmission: 0.33,
+      moonCloudBleed: 0.45,
       moonSpotColor: "#69c2f6",
       moonSpotStrength: 0.75,
       // ── Cloud defaults ────────────────────────────────────────────────────
@@ -1163,6 +1429,8 @@ export default function SkyDome({
       cloudDensity: 0.53,
       cloudSharpness: 0.03,
       cloudFloor: 0.0,
+      cloudFloorFade: 0.06,
+      cloudFloorPow: 0.45,
       cloudAmplitude: 0.54,
       cloudGrain: 0,
       cloudCore: "#00348a",
@@ -1170,12 +1438,21 @@ export default function SkyDome({
       cloudRim: "#8bbfee",
       cloudEdgeWidth: 0.07,
       cloudRimStrength: 4.5,
+      // Volume light off by default — a preset opts in (see Sakura Dusk).
+      cloudLit: "#ffe3c2",
+      cloudLitStrength: 0,
+      cloudLightSteps: 4,
+      cloudLightDist: 0.45,
+      cloudAbsorption: 2.6,
+      cloudLightOct: 3,
+      cloudBands: 0,
+      cloudFrontLit: 1,
       cloudDarkenFar: 0.8,
       cloudStretch: 0.5,
-      cloudMorphSpeed: 0.06,
+      cloudMorphSpeed: 0.05,
       moonLightRadius: 0.05,
       moonLightSoftness: 0.54,
-      cloudSpeed: 0.005,
+      cloudSpeed: 0.01,
       cloudCeiling: 0.63,
       // ── Aurora defaults ───────────────────────────────────────────────────
       auroraIntensity: 0.8,
@@ -1229,6 +1506,9 @@ export default function SkyDome({
       ...(preset.moonEmission !== undefined && {
         moonEmission: preset.moonEmission,
       }),
+      ...(preset.moonCloudBleed !== undefined && {
+        moonCloudBleed: preset.moonCloudBleed,
+      }),
       ...(preset.moonSpotColor !== undefined && {
         moonSpotColor: preset.moonSpotColor,
       }),
@@ -1246,6 +1526,12 @@ export default function SkyDome({
         cloudOctaves: preset.cloudOctaves,
       }),
       ...(preset.cloudFloor !== undefined && { cloudFloor: preset.cloudFloor }),
+      ...(preset.cloudFloorFade !== undefined && {
+        cloudFloorFade: preset.cloudFloorFade,
+      }),
+      ...(preset.cloudFloorPow !== undefined && {
+        cloudFloorPow: preset.cloudFloorPow,
+      }),
       ...(preset.cloudAmplitude !== undefined && {
         cloudAmplitude: preset.cloudAmplitude,
       }),
@@ -1258,6 +1544,26 @@ export default function SkyDome({
       }),
       ...(preset.cloudRimStrength !== undefined && {
         cloudRimStrength: preset.cloudRimStrength,
+      }),
+      ...(preset.cloudLit !== undefined && { cloudLit: preset.cloudLit }),
+      ...(preset.cloudLitStrength !== undefined && {
+        cloudLitStrength: preset.cloudLitStrength,
+      }),
+      ...(preset.cloudLightSteps !== undefined && {
+        cloudLightSteps: preset.cloudLightSteps,
+      }),
+      ...(preset.cloudLightDist !== undefined && {
+        cloudLightDist: preset.cloudLightDist,
+      }),
+      ...(preset.cloudAbsorption !== undefined && {
+        cloudAbsorption: preset.cloudAbsorption,
+      }),
+      ...(preset.cloudLightOct !== undefined && {
+        cloudLightOct: preset.cloudLightOct,
+      }),
+      ...(preset.cloudBands !== undefined && { cloudBands: preset.cloudBands }),
+      ...(preset.cloudFrontLit !== undefined && {
+        cloudFrontLit: preset.cloudFrontLit,
       }),
       ...(preset.cloudDarkenFar !== undefined && {
         cloudDarkenFar: preset.cloudDarkenFar,
@@ -1287,12 +1593,37 @@ export default function SkyDome({
       ...(preset.auroraColor2 !== undefined && {
         auroraColor2: preset.auroraColor2,
       }),
+      ...(preset.domeOffsetY !== undefined && {
+        domeOffsetY: preset.domeOffsetY,
+      }),
     });
     onPresetChange?.(preset);
   }, [skyMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Reclaim the sky on mount ───────────────────────────────────────────────
+  // `defaultMode` is in the Leva schema, and Leva reads a schema default ONLY
+  // for a path it has never seen. Its store is a module-level singleton that
+  // outlives the React tree, and unmounting does not clear it: disposePaths
+  // decrements a refcount and deletes the entry only for SpecialInputs —
+  // folders and buttons — so a value input like "Sky > Sky Mode" survives a
+  // client-side navigation at refCount 0 and is handed straight back to the
+  // next scene.
+  //
+  // The visible result is a demo opening on the previous demo's sky. Asserting
+  // the mode here is what makes each page start on its own: the [skyMode]
+  // effect below then fires and rewrites every other sky value from that
+  // preset, so the whole folder is reset, not just the dropdown.
+  useEffect(() => {
+    set({ skyMode: defaultMode ?? "day" });
+    // Mount only. Re-running on a defaultMode change would fight the user's
+    // own dropdown, which is the one thing this must never do.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // When the day-cycle controller completes a transition it passes a targetMode
   // here — this pushes it into Leva so the dropdown and preset system update.
+  // Declared after the reset so that on mount it wins: a scene that drives the
+  // sky externally has the final say over the static default.
   useEffect(() => {
     if (targetMode) set({ skyMode: targetMode });
   }, [targetMode]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1345,6 +1676,7 @@ export default function SkyDome({
     u.uMoonPhaseSoftness.value = moonPhaseSoftness;
     u.uMoonPhaseAngle.value = moonPhaseAngle * (Math.PI / 180);
     u.uMoonEmission.value = moonEmission;
+    u.uMoonCloudBleed.value = moonCloudBleed;
     u.uMoonSpotColor.value.set(moonSpotColor);
     u.uMoonSpotScale.value = moonSpotScale;
     u.uMoonSpotStrength.value = moonSpotStrength;
@@ -1390,11 +1722,21 @@ export default function SkyDome({
     u.uCloudRim.value.set(cloudRim);
     u.uCloudEdgeWidth.value = cloudEdgeWidth;
     u.uCloudRimStrength.value = cloudRimStrength;
+    u.uCloudLit.value.set(cloudLit);
+    u.uCloudLitStrength.value = cloudLitStrength;
+    u.uCloudLightSteps.value = cloudLightSteps;
+    u.uCloudLightDist.value = cloudLightDist;
+    u.uCloudAbsorption.value = cloudAbsorption;
+    u.uCloudLightOct.value = cloudLightOct;
+    u.uCloudBands.value = cloudBands;
+    u.uCloudFrontLit.value = cloudFrontLit;
     u.uMoonLightRadius.value = moonLightRadius;
     u.uMoonLightSoftness.value = moonLightSoftness;
     u.uCloudDarkenFar.value = cloudDarkenFar;
     u.uCloudStretch.value = cloudStretch;
     u.uCloudFloor.value = cloudFloor;
+    u.uCloudFloorFade.value = cloudFloorFade;
+    u.uCloudFloorPow.value = cloudFloorPow;
     u.uCloudCeiling.value = cloudCeiling;
     // cloudsEnabled gates opacity; preset value takes priority over Leva
     u.uCloudOpacity.value = preset.cloudsEnabled
@@ -1461,6 +1803,11 @@ export default function SkyDome({
         to.moonEmission ?? 0.33,
         t,
       );
+      u.uMoonCloudBleed.value = lerp(
+        from.moonCloudBleed ?? 0.45,
+        to.moonCloudBleed ?? 0.45,
+        t,
+      );
       u.uMoonGlowFalloff.value = lerp(
         from.moonGlowFalloff ?? 80,
         to.moonGlowFalloff ?? 80,
@@ -1523,6 +1870,32 @@ export default function SkyDome({
         to.cloudRimStrength ?? 4.5,
         t,
       );
+      cA.set(from.cloudLit ?? "#ffe3c2");
+      cB.set(to.cloudLit ?? "#ffe3c2");
+      u.uCloudLit.value.lerpColors(cA, cB, t);
+      // Strength/absorption cross-fade so a sky WITH volume light can dissolve
+      // into one without it. Step count and octaves are cost knobs, not looks —
+      // they hold at whatever the target asks for.
+      u.uCloudLitStrength.value = lerp(
+        from.cloudLitStrength ?? 0,
+        to.cloudLitStrength ?? 0,
+        t,
+      );
+      u.uCloudAbsorption.value = lerp(
+        from.cloudAbsorption ?? 2.6,
+        to.cloudAbsorption ?? 2.6,
+        t,
+      );
+      u.uCloudLightDist.value = lerp(
+        from.cloudLightDist ?? 0.45,
+        to.cloudLightDist ?? 0.45,
+        t,
+      );
+      u.uCloudFrontLit.value = lerp(
+        from.cloudFrontLit ?? 1,
+        to.cloudFrontLit ?? 1,
+        t,
+      );
       u.uCloudDarkenFar.value = lerp(
         from.cloudDarkenFar ?? 0.8,
         to.cloudDarkenFar ?? 0.8,
@@ -1531,6 +1904,16 @@ export default function SkyDome({
       u.uCloudFloor.value = lerp(
         from.cloudFloor ?? 0.0,
         to.cloudFloor ?? 0.0,
+        t,
+      );
+      u.uCloudFloorFade.value = lerp(
+        from.cloudFloorFade ?? 0.06,
+        to.cloudFloorFade ?? 0.06,
+        t,
+      );
+      u.uCloudFloorPow.value = lerp(
+        from.cloudFloorPow ?? 0.45,
+        to.cloudFloorPow ?? 0.45,
         t,
       );
       u.uMoonLightRadius.value = lerp(
@@ -1548,6 +1931,24 @@ export default function SkyDome({
         to.cloudsEnabled ? (to.cloudOpacity ?? cloudOpacity) : 0,
         t,
       );
+    }
+
+    // ── Where the disc actually IS, in world space ────────────────────────
+    // Last, so it reads the final uMoonDir whichever path wrote it (Leva or a
+    // day-cycle blend).
+    //
+    // This is NOT `camera.position + moonDir * distance`, and the difference is
+    // not small. The dome is centred on the camera LIFTED BY domeOffsetY, and
+    // the shader's vDir is the direction from that centre — so the disc hangs
+    // at `domeCentre + moonDir * domeRadius`. Anything projecting the raw
+    // direction from the camera lands somewhere else entirely: at this scene's
+    // offset 190 / radius 900 that is asin(190/919) ≈ 12° of error, which is
+    // what put the lens flare a disc-and-a-half BELOW the sun.
+    if (moonPosRef) {
+      moonPosRef.current
+        .copy(u.uMoonDir.value)
+        .multiplyScalar(domeRadius)
+        .add(meshRef.current.position);
     }
   });
 
